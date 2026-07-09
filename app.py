@@ -138,7 +138,7 @@ with tab2:
             st.rerun()
 
 with tab1:
-    # --- MODIFICA CORSO ---
+    # --- MODIFICA ---
     with st.expander("✏️ Modifica un corso esistente"):
         corsi_tutti = get_data('/corsi')
         if corsi_tutti:
@@ -157,18 +157,14 @@ with tab1:
                 if st.form_submit_button("Salva Modifiche"):
                     scadenza = new_data_s.replace(year=new_data_s.year + new_val)
                     db.reference(f'/corsi/{cid_da_mod}', url=DB_URL).update({
-                        "nominativo": new_nom, 
-                        "corso": new_corso, 
-                        "data_svolto": str(new_data_s), 
-                        "data_scadenza": str(scadenza),
-                        "notifica_inviata": False # Reset notifica dopo modifica
+                        "nominativo": new_nom, "corso": new_corso, 
+                        "data_svolto": str(new_data_s), "data_scadenza": str(scadenza),
+                        "notifica_inviata": False
                     })
                     st.success("Modifica salvata!")
                     st.rerun()
-        else:
-            st.write("Nessun corso da modificare.")
 
-    # --- ELIMINA CORSO ---
+    # --- ELIMINA ---
     with st.expander("🗑️ Gestione Archivi: Rimuovi un corso"):
         corsi_da_eliminare = get_data('/corsi')
         if corsi_da_eliminare:
@@ -178,29 +174,45 @@ with tab1:
                 delete_data('/corsi', opzioni_del[selezione_del])
                 st.success("Corso eliminato!")
                 st.rerun()
-        else:
-            st.write("Nessun corso presente.")
 
     st.divider()
     
-    # --- TABELLA ---
+    # --- RICERCA E TABELLA ---
+    col_search, col_filter = st.columns([3, 1])
+    query = col_search.text_input("🔍 Cerca nel registro...", placeholder="Scrivi qui per filtrare...")
+    filtro_tipo = col_filter.selectbox("Filtra per:", ["Tutto", "Nominativo", "Corso"])
+    
     corsi = get_data('/corsi')
     if corsi:
         data_list = []
         oggi = datetime.today().date()
         soglia = oggi + timedelta(days=30)
+        
         for cid, d in corsi.items():
             if 'nominativo' in d and 'corso' in d:
-                d_scad = datetime.strptime(d['data_scadenza'], "%Y-%m-%d").date()
-                if d.get('notifica_inviata', False): stato = "✅ Mail inviata"
-                elif d_scad < oggi: stato = "🔴 SCADUTO"
-                elif d_scad <= soglia: stato = "⚠️ IN SCADENZA"
-                else: stato = "🟢 IN CORSO"
-                data_list.append({
-                    "Stato": stato, "Nominativo": d['nominativo'], "Corso": d['corso'],
-                    "Data Svolto": datetime.strptime(d['data_svolto'], "%Y-%m-%d").strftime("%d/%m/%Y"),
-                    "Data Scadenza": datetime.strptime(d['data_scadenza'], "%Y-%m-%d").strftime("%d/%m/%Y")
-                })
-        st.dataframe(pd.DataFrame(data_list), use_container_width=True, hide_index=True)
+                # Logica filtri
+                match = True
+                if query:
+                    if filtro_tipo == "Nominativo": match = query.lower() in d['nominativo'].lower()
+                    elif filtro_tipo == "Corso": match = query.lower() in d['corso'].lower()
+                    else: match = (query.lower() in d['nominativo'].lower() or query.lower() in d['corso'].lower() or query in d['data_scadenza'])
+                
+                if match:
+                    d_scad = datetime.strptime(d['data_scadenza'], "%Y-%m-%d").date()
+                    if d.get('notifica_inviata', False): stato = "✅ Mail inviata"
+                    elif d_scad < oggi: stato = "🔴 SCADUTO"
+                    elif d_scad <= soglia: stato = "⚠️ IN SCADENZA"
+                    else: stato = "🟢 IN CORSO"
+                    
+                    data_list.append({
+                        "Stato": stato, "Nominativo": d['nominativo'], "Corso": d['corso'],
+                        "Data Svolto": datetime.strptime(d['data_svolto'], "%Y-%m-%d").strftime("%d/%m/%Y"),
+                        "Data Scadenza": datetime.strptime(d['data_scadenza'], "%Y-%m-%d").strftime("%d/%m/%Y")
+                    })
+        
+        if data_list:
+            st.dataframe(pd.DataFrame(data_list), use_container_width=True, hide_index=True)
+        else:
+            st.warning("Nessun risultato trovato.")
     else:
         st.info("Nessun corso presente nel registro.")
