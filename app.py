@@ -54,7 +54,6 @@ def invia_email(nominativo, corso, data_scadenza):
     msg['To'] = ", ".join(destinatari)
     msg['Subject'] = f"Notifica Scadenza: {nominativo} - {corso}"
     
-    # Conversione data per email in formato DD/MM/YYYY
     d_scad_ita = datetime.strptime(data_scadenza, "%Y-%m-%d").strftime("%d/%m/%Y")
     corpo = f"Scadenza corso {corso} per {nominativo}. Scade il: {d_scad_ita}"
     msg.attach(MIMEText(corpo, 'plain'))
@@ -106,7 +105,6 @@ with tab2:
     with st.form("form_corso", clear_on_submit=True):
         nom = st.text_input("Dipendente")
         corso = st.text_input("Corso")
-        # Widget data con formato europeo
         data_s = st.date_input("Data Svolgimento", format="DD/MM/YYYY")
         val = st.selectbox("Anni Validità", [1, 2, 3, 5, 10], index=3)
         if st.form_submit_button("Salva Corso"):
@@ -145,6 +143,8 @@ with tab1:
                     })
                     st.success("Modifica salvata!")
                     st.rerun()
+        else:
+            st.write("Nessun corso da modificare.")
 
     # --- ELIMINA ---
     with st.expander("🗑️ Gestione Archivi: Rimuovi un corso"):
@@ -160,10 +160,10 @@ with tab1:
 
     st.divider()
     
-    # --- TABELLA ---
+    # --- RICERCA E TABELLA ---
     col_search, col_filter = st.columns([3, 1])
-    query = col_search.text_input("🔍 Cerca (es. 20/07/2026)...", placeholder="Cerca per nome, corso o data (formato DD/MM/YYYY)")
-    filtro_tipo = col_filter.selectbox("Filtra per:", ["Tutto", "Nominativo", "Corso"])
+    query = col_search.text_input("🔍 Cerca nel registro...", placeholder="Nome, corso o data (DD/MM/YYYY)...")
+    filtro_tipo = col_filter.selectbox("Filtra per:", ["Tutto", "Nominativo", "Corso", "In scadenza", "Scaduto"])
     
     corsi = get_data('/corsi')
     if corsi:
@@ -172,31 +172,32 @@ with tab1:
         soglia = oggi + timedelta(days=30)
         
         for cid, d in corsi.items():
-            # Formattiamo le date per la visualizzazione/ricerca europea
             data_svolto_ita = datetime.strptime(d['data_svolto'], "%Y-%m-%d").strftime("%d/%m/%Y")
             data_scad_ita = datetime.strptime(d['data_scadenza'], "%d/%m/%Y" if "/" in d['data_scadenza'] else "%Y-%m-%d").strftime("%d/%m/%Y")
+            d_scad = datetime.strptime(data_scad_ita, "%d/%m/%Y").date()
             
-            # Logica filtri
+            if d.get('notifica_inviata', False): stato = "✅ Mail inviata"
+            elif d_scad < oggi: stato = "🔴 SCADUTO"
+            elif d_scad <= soglia: stato = "⚠️ IN SCADENZA"
+            else: stato = "🟢 IN CORSO"
+            
             match = True
-            if query:
+            if filtro_tipo == "In scadenza": match = (stato == "⚠️ IN SCADENZA")
+            elif filtro_tipo == "Scaduto": match = (stato == "🔴 SCADUTO")
+            elif query:
                 if filtro_tipo == "Nominativo": match = query.lower() in d['nominativo'].lower()
                 elif filtro_tipo == "Corso": match = query.lower() in d['corso'].lower()
                 else: match = (query.lower() in d['nominativo'].lower() or query.lower() in d['corso'].lower() or query in data_scad_ita)
             
             if match:
-                d_scad = datetime.strptime(data_scad_ita, "%d/%m/%Y").date()
-                if d.get('notifica_inviata', False): stato = "✅ Mail inviata"
-                elif d_scad < oggi: stato = "🔴 SCADUTO"
-                elif d_scad <= soglia: stato = "⚠️ IN SCADENZA"
-                else: stato = "🟢 IN CORSO"
-                
                 data_list.append({
                     "Stato": stato, "Nominativo": d['nominativo'], "Corso": d['corso'],
-                    "Data Svolto": data_svolto_ita,
-                    "Data Scadenza": data_scad_ita
+                    "Data Svolto": data_svolto_ita, "Data Scadenza": data_scad_ita
                 })
         
         if data_list:
             st.dataframe(pd.DataFrame(data_list), use_container_width=True, hide_index=True)
         else:
             st.warning("Nessun risultato trovato.")
+    else:
+        st.info("Nessun corso presente nel registro.")
