@@ -8,6 +8,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import PIL.Image
+import os
 
 # --- 1. CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="Sicurezza | Guasti Gino", layout="wide")
@@ -90,11 +91,15 @@ def invia_email(nominativo, corso, data_scadenza):
         return f"Errore: {e}"
 
 # --- 5. INTERFACCIA UTENTE ---
-# Caricamento logo
-logo = PIL.Image.open("LOGO GGI SFTR.tif")
+logo_path = os.path.join(os.path.dirname(__file__), "LOGO GGI SFTR.png")
 col_logo, col_titolo = st.columns([1, 5])
+
 with col_logo:
-    st.image(logo, width=150)
+    if os.path.exists(logo_path):
+        st.image(PIL.Image.open(logo_path), width=150)
+    else:
+        st.warning("Logo non trovato.")
+
 with col_titolo:
     st.title("Guasti Gino Impianti S.r.l.")
     st.subheader("Gestione Corsi Sicurezza")
