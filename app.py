@@ -143,8 +143,6 @@ with tab1:
                     })
                     st.success("Modifica salvata!")
                     st.rerun()
-        else:
-            st.write("Nessun corso da modificare.")
 
     # --- ELIMINA ---
     with st.expander("🗑️ Gestione Archivi: Rimuovi un corso"):
@@ -190,13 +188,27 @@ with tab1:
                 else: match = (query.lower() in d['nominativo'].lower() or query.lower() in d['corso'].lower() or query in data_scad_ita)
             
             if match:
+                anni_val = (d_scad.year - datetime.strptime(d['data_svolto'], "%Y-%m-%d").year)
                 data_list.append({
-                    "Stato": stato, "Nominativo": d['nominativo'], "Corso": d['corso'],
-                    "Data Svolto": data_svolto_ita, "Data Scadenza": data_scad_ita
+                    "Stato": stato, 
+                    "Nominativo": d['nominativo'], 
+                    "Corso": d['corso'],
+                    "Validità (Anni)": anni_val,
+                    "Data Svolto": data_svolto_ita, 
+                    "Data Scadenza": data_scad_ita
                 })
         
         if data_list:
-            st.dataframe(pd.DataFrame(data_list), use_container_width=True, hide_index=True)
+            df = pd.DataFrame(data_list)
+            # Definizione priorità stato
+            priorita_stato = {"🔴 SCADUTO": 0, "⚠️ IN SCADENZA": 1, "🟢 IN CORSO": 2, "✅ Mail inviata": 3}
+            df['priorita'] = df['Stato'].map(priorita_stato)
+            df['Data_Temp'] = pd.to_datetime(df['Data Scadenza'], format='%d/%m/%Y')
+            # Ordinamento: Priorità Stato -> Nominativo -> Data Scadenza
+            df = df.sort_values(by=['priorita', 'Nominativo', 'Data_Temp'], ascending=[True, True, True])
+            df = df.drop(columns=['priorita', 'Data_Temp'])
+            
+            st.dataframe(df, use_container_width=True, hide_index=True)
         else:
             st.warning("Nessun risultato trovato.")
     else:
