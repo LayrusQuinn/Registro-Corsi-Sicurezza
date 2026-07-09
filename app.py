@@ -16,7 +16,6 @@ DB_URL = "https://corsi-sicurezza-ggi-default-rtdb.europe-west1.firebasedatabase
 
 if not firebase_admin._apps:
     try:
-        # Recupera le credenziali dai Secrets di Streamlit
         key_dict = json.loads(st.secrets["firebase_json"])
         cred = credentials.Certificate(key_dict)
         firebase_admin.initialize_app(cred, {'databaseURL': DB_URL})
@@ -139,21 +138,52 @@ with tab2:
             st.rerun()
 
 with tab1:
+    # --- MODIFICA CORSO ---
+    with st.expander("✏️ Modifica un corso esistente"):
+        corsi_tutti = get_data('/corsi')
+        if corsi_tutti:
+            opzioni = {f"{d.get('nominativo', 'N/A')} - {d.get('corso', 'N/A')}": cid for cid, d in corsi_tutti.items()}
+            selezione = st.selectbox("Seleziona il corso da modificare:", list(opzioni.keys()))
+            cid_da_mod = opzioni[selezione]
+            dati_da_mod = corsi_tutti[cid_da_mod]
+
+            with st.form("form_modifica"):
+                new_nom = st.text_input("Dipendente", value=dati_da_mod.get('nominativo', ''))
+                new_corso = st.text_input("Corso", value=dati_da_mod.get('corso', ''))
+                d_svolto = datetime.strptime(dati_da_mod.get('data_svolto'), "%Y-%m-%d")
+                new_data_s = st.date_input("Data Svolgimento", value=d_svolto)
+                new_val = st.selectbox("Anni Validità", [1, 2, 3, 5, 10], index=3)
+                
+                if st.form_submit_button("Salva Modifiche"):
+                    scadenza = new_data_s.replace(year=new_data_s.year + new_val)
+                    db.reference(f'/corsi/{cid_da_mod}', url=DB_URL).update({
+                        "nominativo": new_nom, 
+                        "corso": new_corso, 
+                        "data_svolto": str(new_data_s), 
+                        "data_scadenza": str(scadenza),
+                        "notifica_inviata": False # Reset notifica dopo modifica
+                    })
+                    st.success("Modifica salvata!")
+                    st.rerun()
+        else:
+            st.write("Nessun corso da modificare.")
+
+    # --- ELIMINA CORSO ---
     with st.expander("🗑️ Gestione Archivi: Rimuovi un corso"):
         corsi_da_eliminare = get_data('/corsi')
         if corsi_da_eliminare:
-            opzioni = {f"{d.get('nominativo', 'N/A')} - {d.get('corso', 'N/A')}": cid for cid, d in corsi_da_eliminare.items()}
-            selezione = st.selectbox("Seleziona il corso da eliminare:", list(opzioni.keys()))
-            
+            opzioni_del = {f"{d.get('nominativo', 'N/A')} - {d.get('corso', 'N/A')}": cid for cid, d in corsi_da_eliminare.items()}
+            selezione_del = st.selectbox("Seleziona il corso da eliminare:", list(opzioni_del.keys()))
             if st.button("⚠️ Elimina Definitivamente", type="primary"):
-                delete_data('/corsi', opzioni[selezione])
-                st.success("Corso eliminato correttamente!")
+                delete_data('/corsi', opzioni_del[selezione_del])
+                st.success("Corso eliminato!")
                 st.rerun()
         else:
-            st.write("Nessun corso presente da eliminare.")
+            st.write("Nessun corso presente.")
 
     st.divider()
     
+    # --- TABELLA ---
     corsi = get_data('/corsi')
     if corsi:
         data_list = []
