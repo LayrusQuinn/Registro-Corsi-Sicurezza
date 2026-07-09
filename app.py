@@ -54,6 +54,7 @@ def invia_email(nominativo, corso, data_scadenza):
     msg['To'] = ", ".join(destinatari)
     msg['Subject'] = f"Notifica Scadenza: {nominativo} - {corso}"
     
+    # Conversione data per email in formato DD/MM/YYYY
     d_scad_ita = datetime.strptime(data_scadenza, "%Y-%m-%d").strftime("%d/%m/%Y")
     corpo = f"Scadenza corso {corso} per {nominativo}. Scade il: {d_scad_ita}"
     msg.attach(MIMEText(corpo, 'plain'))
@@ -74,7 +75,6 @@ st.title("🏢 Guasti Gino Impianti S.r.l.")
 # --- SIDEBAR ---
 with st.sidebar:
     st.header("⚙️ Impostazioni Sistema")
-    
     with st.expander("📧 Configurazione SMTP"):
         with st.form("form_smtp"):
             email_mit = st.text_input("Gmail Mittente", value=get_data('/config').get('email_mittente', ''))
@@ -84,7 +84,7 @@ with st.sidebar:
                 set_data('/config/password_mittente', pass_mit)
                 st.success("Salvato!")
                 st.rerun()
-
+    
     with st.expander("👥 Destinatari"):
         dest_attuali = get_data('/destinatari')
         for d_id, d_dati in dest_attuali.items():
@@ -98,25 +98,6 @@ with st.sidebar:
             if "@" in nuova_email:
                 push_data('/destinatari', {"email": nuova_email})
                 st.rerun()
-    
-    st.divider()
-    
-    if st.button("🚀 Esegui Scansione", type="primary"):
-        corsi = get_data('/corsi')
-        oggi = datetime.today().date()
-        soglia = oggi + timedelta(days=30)
-        inviati = 0
-        
-        for cid, dati in corsi.items():
-            if 'data_scadenza' in dati:
-                d_scad = datetime.strptime(dati['data_scadenza'], "%Y-%m-%d").date()
-                if d_scad <= soglia:
-                    esito = invia_email(dati.get('nominativo', 'N/D'), dati.get('corso', 'N/D'), dati.get('data_scadenza', 'N/D'))
-                    if "Inviato" in esito:
-                        db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True})
-                        inviati += 1
-        
-        st.success(f"Scansione completata! Inviate {inviati} email.")
 
 # --- MAIN ---
 tab1, tab2 = st.tabs(["📋 Registro Corsi", "➕ Aggiungi Corso"])
@@ -125,6 +106,7 @@ with tab2:
     with st.form("form_corso", clear_on_submit=True):
         nom = st.text_input("Dipendente")
         corso = st.text_input("Corso")
+        # Widget data con formato europeo
         data_s = st.date_input("Data Svolgimento", format="DD/MM/YYYY")
         val = st.selectbox("Anni Validità", [1, 2, 3, 5, 10], index=3)
         if st.form_submit_button("Salva Corso"):
@@ -151,7 +133,7 @@ with tab1:
                 new_nom = st.text_input("Dipendente", value=dati_da_mod.get('nominativo', ''))
                 new_corso = st.text_input("Corso", value=dati_da_mod.get('corso', ''))
                 d_svolto = datetime.strptime(dati_da_mod.get('data_svolto'), "%Y-%m-%d")
-                new_data_s = st.date_input("Data Svolgimento", value=d_svolto)
+                new_data_s = st.date_input("Data Svolgimento", value=d_svolto, format="DD/MM/YYYY")
                 new_val = st.selectbox("Anni Validità", [1, 2, 3, 5, 10], index=3)
                 
                 if st.form_submit_button("Salva Modifiche"):
@@ -163,32 +145,24 @@ with tab1:
                     })
                     st.success("Modifica salvata!")
                     st.rerun()
-        else:
-            st.write("Nessun corso da modificare.")
 
-    # --- ELIMINA CON CONFERMA ---
+    # --- ELIMINA ---
     with st.expander("🗑️ Gestione Archivi: Rimuovi un corso"):
         corsi_da_eliminare = get_data('/corsi')
         if corsi_da_eliminare:
             opzioni_del = {f"{d.get('nominativo', 'N/A')} - {d.get('corso', 'N/A')}": cid for cid, d in corsi_da_eliminare.items()}
             selezione_del = st.selectbox("Seleziona il corso da eliminare:", list(opzioni_del.keys()))
-            
-            # Checkbox di sicurezza
-            conferma_eliminazione = st.checkbox("⚠️ Confermo di voler eliminare definitivamente questo corso")
-            
-            # Il pulsante è disabilitato se la spunta non è attiva
-            if st.button("🗑️ Elimina Definitivamente", type="primary", disabled=not conferma_eliminazione):
+            conferma = st.checkbox("⚠️ Confermo di voler eliminare definitivamente questo corso")
+            if st.button("🗑️ Elimina Definitivamente", type="primary", disabled=not conferma):
                 delete_data('/corsi', opzioni_del[selezione_del])
-                st.success("Corso eliminato correttamente!")
+                st.success("Corso eliminato!")
                 st.rerun()
-        else:
-            st.write("Nessun corso presente.")
 
     st.divider()
     
-    # --- RICERCA E TABELLA ---
+    # --- TABELLA ---
     col_search, col_filter = st.columns([3, 1])
-    query = col_search.text_input("🔍 Cerca nel registro...", placeholder="Scrivi qui per filtrare...")
+    query = col_search.text_input("🔍 Cerca (es. 20/07/2026)...", placeholder="Cerca per nome, corso o data (formato DD/MM/YYYY)")
     filtro_tipo = col_filter.selectbox("Filtra per:", ["Tutto", "Nominativo", "Corso"])
     
     corsi = get_data('/corsi')
@@ -198,30 +172,31 @@ with tab1:
         soglia = oggi + timedelta(days=30)
         
         for cid, d in corsi.items():
-            if 'nominativo' in d and 'corso' in d:
-                # Logica filtri
-                match = True
-                if query:
-                    if filtro_tipo == "Nominativo": match = query.lower() in d['nominativo'].lower()
-                    elif filtro_tipo == "Corso": match = query.lower() in d['corso'].lower()
-                    else: match = (query.lower() in d['nominativo'].lower() or query.lower() in d['corso'].lower() or query in d['data_scadenza'])
+            # Formattiamo le date per la visualizzazione/ricerca europea
+            data_svolto_ita = datetime.strptime(d['data_svolto'], "%Y-%m-%d").strftime("%d/%m/%Y")
+            data_scad_ita = datetime.strptime(d['data_scadenza'], "%d/%m/%Y" if "/" in d['data_scadenza'] else "%Y-%m-%d").strftime("%d/%m/%Y")
+            
+            # Logica filtri
+            match = True
+            if query:
+                if filtro_tipo == "Nominativo": match = query.lower() in d['nominativo'].lower()
+                elif filtro_tipo == "Corso": match = query.lower() in d['corso'].lower()
+                else: match = (query.lower() in d['nominativo'].lower() or query.lower() in d['corso'].lower() or query in data_scad_ita)
+            
+            if match:
+                d_scad = datetime.strptime(data_scad_ita, "%d/%m/%Y").date()
+                if d.get('notifica_inviata', False): stato = "✅ Mail inviata"
+                elif d_scad < oggi: stato = "🔴 SCADUTO"
+                elif d_scad <= soglia: stato = "⚠️ IN SCADENZA"
+                else: stato = "🟢 IN CORSO"
                 
-                if match:
-                    d_scad = datetime.strptime(d['data_scadenza'], "%Y-%m-%d").date()
-                    if d.get('notifica_inviata', False): stato = "✅ Mail inviata"
-                    elif d_scad < oggi: stato = "🔴 SCADUTO"
-                    elif d_scad <= soglia: stato = "⚠️ IN SCADENZA"
-                    else: stato = "🟢 IN CORSO"
-                    
-                    data_list.append({
-                        "Stato": stato, "Nominativo": d['nominativo'], "Corso": d['corso'],
-                        "Data Svolto": datetime.strptime(d['data_svolto'], "%Y-%m-%d").strftime("%d/%m/%Y"),
-                        "Data Scadenza": datetime.strptime(d['data_scadenza'], "%Y-%m-%d").strftime("%d/%m/%Y")
-                    })
+                data_list.append({
+                    "Stato": stato, "Nominativo": d['nominativo'], "Corso": d['corso'],
+                    "Data Svolto": data_svolto_ita,
+                    "Data Scadenza": data_scad_ita
+                })
         
         if data_list:
             st.dataframe(pd.DataFrame(data_list), use_container_width=True, hide_index=True)
         else:
             st.warning("Nessun risultato trovato.")
-    else:
-        st.info("Nessun corso presente nel registro.")
