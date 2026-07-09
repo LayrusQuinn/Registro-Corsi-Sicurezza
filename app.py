@@ -16,6 +16,7 @@ DB_URL = "https://corsi-sicurezza-ggi-default-rtdb.europe-west1.firebasedatabase
 
 if not firebase_admin._apps:
     try:
+        # Recupera le credenziali dai Secrets di Streamlit
         key_dict = json.loads(st.secrets["firebase_json"])
         cred = credentials.Certificate(key_dict)
         firebase_admin.initialize_app(cred, {'databaseURL': DB_URL})
@@ -101,7 +102,6 @@ with st.sidebar:
     
     st.divider()
     
-    # --- SCANSIONE SEMPLIFICATA (INVIO SEMPRE) ---
     if st.button("🚀 Esegui Scansione", type="primary"):
         corsi = get_data('/corsi')
         oggi = datetime.today().date()
@@ -139,6 +139,21 @@ with tab2:
             st.rerun()
 
 with tab1:
+    with st.expander("🗑️ Gestione Archivi: Rimuovi un corso"):
+        corsi_da_eliminare = get_data('/corsi')
+        if corsi_da_eliminare:
+            opzioni = {f"{d.get('nominativo', 'N/A')} - {d.get('corso', 'N/A')}": cid for cid, d in corsi_da_eliminare.items()}
+            selezione = st.selectbox("Seleziona il corso da eliminare:", list(opzioni.keys()))
+            
+            if st.button("⚠️ Elimina Definitivamente", type="primary"):
+                delete_data('/corsi', opzioni[selezione])
+                st.success("Corso eliminato correttamente!")
+                st.rerun()
+        else:
+            st.write("Nessun corso presente da eliminare.")
+
+    st.divider()
+    
     corsi = get_data('/corsi')
     if corsi:
         data_list = []
@@ -158,4 +173,4 @@ with tab1:
                 })
         st.dataframe(pd.DataFrame(data_list), use_container_width=True, hide_index=True)
     else:
-        st.info("Nessun corso presente.")
+        st.info("Nessun corso presente nel registro.")
