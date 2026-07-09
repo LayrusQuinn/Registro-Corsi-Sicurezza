@@ -163,17 +163,26 @@ with tab1:
                     })
                     st.success("Modifica salvata!")
                     st.rerun()
+        else:
+            st.write("Nessun corso da modificare.")
 
-    # --- ELIMINA ---
+    # --- ELIMINA CON CONFERMA ---
     with st.expander("🗑️ Gestione Archivi: Rimuovi un corso"):
         corsi_da_eliminare = get_data('/corsi')
         if corsi_da_eliminare:
             opzioni_del = {f"{d.get('nominativo', 'N/A')} - {d.get('corso', 'N/A')}": cid for cid, d in corsi_da_eliminare.items()}
             selezione_del = st.selectbox("Seleziona il corso da eliminare:", list(opzioni_del.keys()))
-            if st.button("⚠️ Elimina Definitivamente", type="primary"):
+            
+            # Checkbox di sicurezza
+            conferma_eliminazione = st.checkbox("⚠️ Confermo di voler eliminare definitivamente questo corso")
+            
+            # Il pulsante è disabilitato se la spunta non è attiva
+            if st.button("🗑️ Elimina Definitivamente", type="primary", disabled=not conferma_eliminazione):
                 delete_data('/corsi', opzioni_del[selezione_del])
-                st.success("Corso eliminato!")
+                st.success("Corso eliminato correttamente!")
                 st.rerun()
+        else:
+            st.write("Nessun corso presente.")
 
     st.divider()
     
