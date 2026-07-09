@@ -100,7 +100,6 @@ with st.sidebar:
     
     st.divider()
     
-    # REINSERITO: Pulsante Scansione
     if st.button("🚀 Esegui Scansione", type="primary"):
         corsi = get_data('/corsi')
         oggi = datetime.today().date()
@@ -137,7 +136,6 @@ with tab2:
             st.rerun()
 
 with tab1:
-    # --- MODIFICA ed ELIMINA ---
     with st.expander("✏️ Modifica un corso esistente"):
         corsi_tutti = get_data('/corsi')
         if corsi_tutti:
@@ -224,7 +222,11 @@ with tab1:
             df = df.sort_values(by=['priorita', 'Nominativo', 'Data_Temp'], ascending=[True, True, True])
             df = df.drop(columns=['priorita', 'Data_Temp'])
             
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(
+                df.style.set_properties(subset=['Validità (Anni)'], **{'text-align': 'center'}),
+                use_container_width=True, 
+                hide_index=True
+            )
         else:
             st.warning("Nessun risultato trovato.")
     else:
