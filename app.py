@@ -7,9 +7,10 @@ from datetime import datetime, timedelta
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import PIL.Image
 
 # --- 1. CONFIGURAZIONE PAGINA ---
-st.set_page_config(page_title="Sicurezza | Guasti Gino", page_icon="🛡️", layout="wide")
+st.set_page_config(page_title="Sicurezza | Guasti Gino", layout="wide")
 
 # --- 2. CONNESSIONE A FIREBASE ---
 DB_URL = "https://corsi-sicurezza-ggi-default-rtdb.europe-west1.firebasedatabase.app/"
@@ -89,7 +90,14 @@ def invia_email(nominativo, corso, data_scadenza):
         return f"Errore: {e}"
 
 # --- 5. INTERFACCIA UTENTE ---
-st.title("🏢 Guasti Gino Impianti S.r.l.")
+# Caricamento logo
+logo = PIL.Image.open("LOGO GGI SFTR.tif")
+col_logo, col_titolo = st.columns([1, 5])
+with col_logo:
+    st.image(logo, width=150)
+with col_titolo:
+    st.title("Guasti Gino Impianti S.r.l.")
+    st.subheader("Gestione Corsi Sicurezza")
 
 # --- SIDEBAR ---
 with st.sidebar:
