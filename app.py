@@ -97,6 +97,25 @@ with st.sidebar:
             if "@" in nuova_email:
                 push_data('/destinatari', {"email": nuova_email})
                 st.rerun()
+    
+    st.divider()
+    
+    # REINSERITO: Pulsante Scansione
+    if st.button("🚀 Esegui Scansione", type="primary"):
+        corsi = get_data('/corsi')
+        oggi = datetime.today().date()
+        soglia = oggi + timedelta(days=30)
+        inviati = 0
+        
+        for cid, dati in corsi.items():
+            if 'data_scadenza' in dati:
+                d_scad = datetime.strptime(dati['data_scadenza'], "%Y-%m-%d").date()
+                if d_scad <= soglia:
+                    esito = invia_email(dati.get('nominativo', 'N/D'), dati.get('corso', 'N/D'), dati.get('data_scadenza', 'N/D'))
+                    if "Inviato" in esito:
+                        db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True})
+                        inviati += 1
+        st.success(f"Scansione completata! Inviate {inviati} email.")
 
 # --- MAIN ---
 tab1, tab2 = st.tabs(["📋 Registro Corsi", "➕ Aggiungi Corso"])
@@ -118,7 +137,7 @@ with tab2:
             st.rerun()
 
 with tab1:
-    # --- MODIFICA ---
+    # --- MODIFICA ed ELIMINA ---
     with st.expander("✏️ Modifica un corso esistente"):
         corsi_tutti = get_data('/corsi')
         if corsi_tutti:
@@ -144,7 +163,6 @@ with tab1:
                     st.success("Modifica salvata!")
                     st.rerun()
 
-    # --- ELIMINA ---
     with st.expander("🗑️ Gestione Archivi: Rimuovi un corso"):
         corsi_da_eliminare = get_data('/corsi')
         if corsi_da_eliminare:
@@ -200,11 +218,9 @@ with tab1:
         
         if data_list:
             df = pd.DataFrame(data_list)
-            # Definizione priorità stato
             priorita_stato = {"🔴 SCADUTO": 0, "⚠️ IN SCADENZA": 1, "🟢 IN CORSO": 2, "✅ Mail inviata": 3}
             df['priorita'] = df['Stato'].map(priorita_stato)
             df['Data_Temp'] = pd.to_datetime(df['Data Scadenza'], format='%d/%m/%Y')
-            # Ordinamento: Priorità Stato -> Nominativo -> Data Scadenza
             df = df.sort_values(by=['priorita', 'Nominativo', 'Data_Temp'], ascending=[True, True, True])
             df = df.drop(columns=['priorita', 'Data_Temp'])
             
