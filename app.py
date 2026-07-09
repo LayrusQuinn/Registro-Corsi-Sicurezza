@@ -38,6 +38,9 @@ def push_data(path, data):
 def delete_data(path, item_id):
     db.reference(f'{path}/{item_id}', url=DB_URL).delete()
 
+def reset_notifica(item_id):
+    db.reference(f'/corsi/{item_id}', url=DB_URL).update({'notifica_inviata': False})
+
 # --- 4. LOGICA EMAIL ---
 def invia_email(nominativo, corso, data_scadenza):
     config = get_data('/config')
@@ -171,6 +174,20 @@ with tab1:
                 delete_data('/corsi', opzioni_del[selezione_del])
                 st.success("Corso eliminato!")
                 st.rerun()
+
+    with st.expander("🔄 Reset Notifiche: Ripristina stato mail"):
+        corsi_reset = get_data('/corsi')
+        if corsi_reset:
+            opzioni_reset = {f"{d.get('nominativo', 'N/A')} - {d.get('corso', 'N/A')}": cid 
+                             for cid, d in corsi_reset.items() if d.get('notifica_inviata', False)}
+            if opzioni_reset:
+                selezione_reset = st.selectbox("Seleziona il corso da resettare:", list(opzioni_reset.keys()))
+                if st.button("🔄 Ripristina Stato"):
+                    reset_notifica(opzioni_reset[selezione_reset])
+                    st.success("Stato ripristinato!")
+                    st.rerun()
+            else:
+                st.info("Nessuna notifica inviata da resettare.")
 
     st.divider()
     
