@@ -108,8 +108,11 @@ def invia_email(nominativo, corso, data_scadenza):
 @st.dialog("Conferma eliminazione")
 def conferma_eliminazione(cid):
     st.write("Vuoi davvero eliminare questo corso?")
-    if st.button("Sì, elimina"):
+    col_si, col_no = st.columns(2)
+    if col_si.button("Sì, elimina"):
         delete_data('/corsi', cid)
+        st.rerun()
+    if col_no.button("Annulla"):
         st.rerun()
 
 # --- 7. INTERFACCIA UTENTE ---
@@ -166,8 +169,15 @@ tab1, tab2 = st.tabs(["📋 Registro Corsi", "➕ Aggiungi Corso"])
 opzioni_corsi = ["Preposto", "RLS", "Primo Soccorso", "Antincendio", "PLE", "Muletto", "Base 4H", "Specifica 12H", "DP13 Lavori in quota", "Altro"]
 
 with tab2:
-    with st.form("form_corso", clear_on_submit=True):
-        nom_add = st.text_input("Dipendente")
+    # Inizializzazione stato per il nome persistente e chiave form
+    if 'nom_dipendente' not in st.session_state: st.session_state.nom_dipendente = ""
+    if 'form_key' not in st.session_state: st.session_state.form_key = 0
+    
+    # Campo input nome fuori dal form per mantenerlo persistente
+    nom_input = st.text_input("Dipendente", value=st.session_state.nom_dipendente)
+    st.session_state.nom_dipendente = nom_input
+
+    with st.form(f"form_corso_{st.session_state.form_key}"):
         scelta_add = st.selectbox("Corso", opzioni_corsi)
         corso_add = st.text_input("Specifica nome corso") if scelta_add == "Altro" else scelta_add
         data_s = st.date_input("Data Svolgimento", format="DD/MM/YYYY")
@@ -175,8 +185,9 @@ with tab2:
         
         if st.form_submit_button("💾 Salva Corso"):
             scadenza = data_s.replace(year=data_s.year + val)
-            push_data('/corsi', {"nominativo": nom_add, "corso": corso_add, "data_svolto": str(data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
-            st.success("Corso aggiunto correttamente!")
+            push_data('/corsi', {"nominativo": st.session_state.nom_dipendente, "corso": corso_add, "data_svolto": str(data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
+            st.session_state.form_key += 1 # Forza reset campi del form
+            st.rerun()
 
 with tab1:
     st.subheader("Filtri")
