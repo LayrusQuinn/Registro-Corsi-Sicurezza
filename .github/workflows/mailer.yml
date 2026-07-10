@@ -1,4 +1,8 @@
+Ecco il file .github/workflows/mailer.yml completo e corretto. Assicurati di incollarlo esattamente così, rispettando le rientranze (gli spazi a inizio riga).
+YAML
+
 name: Invio Email Automatico
+
 on:
   schedule:
     - cron: '0 8 * * *'
@@ -8,14 +12,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4  # Aggiornato a v4
+      - uses: actions/checkout@v4
+      
       - name: Set up Python
-        uses: actions/setup-python@v5 # Aggiornato a v5
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: '3.12'
+          
       - name: Install dependencies
         run: pip install firebase-admin
+        
       - name: Run Mailer
         env:
           FIREBASE_JSON: ${{ secrets.FIREBASE_JSON }}
+          TEST_SECRET: ${{ secrets.TEST_SECRET }}
         run: python run_mailer.py
