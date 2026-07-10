@@ -14,7 +14,7 @@ import io
 # --- 1. CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="Sicurezza | Guasti Gino", layout="wide")
 
-# --- 2. SISTEMA DI LOGIN ---
+# --- 2. SISTEMA DI LOGIN (PERSISTENTE) ---
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
 
@@ -199,7 +199,6 @@ with st.sidebar:
         time.sleep(0.5)
         st.rerun()
 
-    # --- ESPORTAZIONE EXCEL ---
     st.divider()
     corsi_per_export = get_data('/corsi')
     if corsi_per_export:
