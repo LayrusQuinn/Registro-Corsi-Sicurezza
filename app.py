@@ -8,6 +8,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
+import time
 
 # --- 1. CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="Sicurezza | Guasti Gino", layout="wide")
@@ -158,27 +159,31 @@ tab1, tab2 = st.tabs(["📋 Registro Corsi", "➕ Aggiungi Corso"])
 opzioni_corsi = ["Preposto", "RLS", "Primo Soccorso", "Antincendio", "PLE", "Muletto", "Base 4H", "Specifica 12H", "DP13 Lavori in quota", "Altro"]
 
 with tab2:
-    # Gestione persistenza nome dipendente
-    nom_add = st.text_input("Dipendente", value=st.session_state.get('last_nom', ''), key="add_nom")
+    if 'last_nom' not in st.session_state: st.session_state.last_nom = ""
+    nom_add = st.text_input("Dipendente", value=st.session_state.last_nom, key="add_nom")
     
-    with st.form("form_corso", clear_on_submit=False):
+    with st.form("form_corso", clear_on_submit=True):
         scelta_add = st.selectbox("Corso", opzioni_corsi, key="add_sel")
         corso_add = st.text_input("Specifica nome corso", key="add_altro") if scelta_add == "Altro" else scelta_add
         data_s = st.date_input("Data Svolgimento", format="DD/MM/YYYY")
         val = st.selectbox("Anni Validità", [1, 2, 3, 5, 10], index=3)
         
         col_c1, col_c2 = st.columns(2)
-        
-        if col_c1.form_submit_button("💾 Salva Corso"):
+        submit = col_c1.form_submit_button("💾 Salva Corso")
+        add_another = col_c2.form_submit_button("➕ Aggiungi altro corso")
+
+        if submit or add_another:
             scadenza = data_s.replace(year=data_s.year + val)
-            push_data('/corsi', {"nominativo": nom_add, "corso": corso_add, "data_svolto": str(data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
-            st.session_state.last_nom = ""
-            st.rerun()
-            
-        if col_c2.form_submit_button("➕ Aggiungi altro corso"):
-            scadenza = data_s.replace(year=data_s.year + val)
-            push_data('/corsi', {"nominativo": nom_add, "corso": corso_add, "data_svolto": str(data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
-            st.session_state.last_nom = nom_add
+            push_data('/corsi', {
+                "nominativo": nom_add, 
+                "corso": corso_add, 
+                "data_svolto": str(data_s), 
+                "data_scadenza": str(scadenza), 
+                "notifica_inviata": False
+            })
+            st.session_state.last_nom = nom_add if add_another else ""
+            st.success(f"Corso '{corso_add}' aggiunto correttamente per {nom_add}!")
+            time.sleep(1)
             st.rerun()
 
 with tab1:
