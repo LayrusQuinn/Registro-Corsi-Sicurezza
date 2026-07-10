@@ -57,7 +57,6 @@ def invia_email():
     ref = db.reference('/corsi')
     corsi = ref.get()
     
-    # DEBUG: Visualizza cosa viene letto
     print(f"DEBUG: Dati letti da /corsi: {corsi}")
     
     if not corsi:
@@ -75,8 +74,8 @@ def invia_email():
             d_scad = datetime.strptime(info['data_scadenza'], '%Y-%m-%d')
             inviata = info.get('notifica_inviata', False)
             
-            # Verifica condizioni
-            in_range = (oggi <= d_scad <= soglia)
+            # Condizione aggiornata: notifica se scade entro i 30 giorni, inclusi i già scaduti[cite: 1]
+            in_range = (d_scad <= soglia)
             
             print(f"DEBUG: {info['corso']} | Scadenza: {d_scad.date()} | In range: {in_range} | Già inviata: {inviata}")
             
