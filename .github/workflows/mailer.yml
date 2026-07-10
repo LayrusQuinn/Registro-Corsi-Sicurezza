@@ -1,16 +1,16 @@
 name: Invio Email Automatico
 on:
   schedule:
-    - cron: '0 8 * * *' # Esegue ogni giorno alle 08:00
-  workflow_dispatch: # Permette di testarlo manualmente
+    - cron: '0 8 * * *'
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4  # Aggiornato a v4
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5 # Aggiornato a v5
         with:
           python-version: '3.9'
       - name: Install dependencies
