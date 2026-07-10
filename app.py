@@ -53,7 +53,10 @@ def invia_email(nominativo, corso, data_scadenza):
 
     if not destinatari or not password: return "Errore Config"
 
-    d_scad_ita = datetime.strptime(data_scadenza, "%Y-%m-%d").strftime("%d/%m/%Y")
+    try:
+        d_scad_ita = datetime.strptime(data_scadenza, "%Y-%m-%d").strftime("%d/%m/%Y")
+    except:
+        d_scad_ita = data_scadenza
     
     msg = MIMEMultipart()
     msg['From'] = mittente
@@ -91,18 +94,8 @@ def invia_email(nominativo, corso, data_scadenza):
         return f"Errore: {e}"
 
 # --- 5. INTERFACCIA UTENTE ---
-logo_path = os.path.join(os.path.dirname(__file__), "LOGO GGI SFTR.png")
-col_logo, col_titolo = st.columns([1, 5])
-
-with col_logo:
-    if os.path.exists(logo_path):
-        st.image(PIL.Image.open(logo_path), width=150)
-    else:
-        st.warning("Logo non trovato.")
-
-with col_titolo:
-    st.title("Guasti Gino Impianti S.r.l.")
-    st.subheader("Gestione Corsi Sicurezza")
+st.title("Guasti Gino Impianti S.r.l.")
+st.subheader("Gestione Corsi Sicurezza")
 
 # --- SIDEBAR ---
 with st.sidebar:
@@ -140,12 +133,14 @@ with st.sidebar:
         inviati = 0
         for cid, dati in corsi.items():
             if 'data_scadenza' in dati:
-                d_scad = datetime.strptime(dati['data_scadenza'], "%Y-%m-%d").date()
-                if d_scad <= soglia and not dati.get('notifica_inviata', False):
-                    esito = invia_email(dati.get('nominativo'), dati.get('corso'), dati.get('data_scadenza'))
-                    if "Inviato" in esito:
-                        db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True})
-                        inviati += 1
+                try:
+                    d_scad = datetime.strptime(dati['data_scadenza'], "%Y-%m-%d").date()
+                    if d_scad <= soglia and not dati.get('notifica_inviata', False):
+                        esito = invia_email(dati.get('nominativo'), dati.get('corso'), dati.get('data_scadenza'))
+                        if "Inviato" in esito:
+                            db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True})
+                            inviati += 1
+                except: continue
         st.success(f"Scansione completata! Inviate {inviati} email.")
 
 # --- MAIN ---
@@ -171,10 +166,16 @@ with tab1:
             selezione = st.selectbox("Seleziona:", list(opzioni.keys()))
             cid_da_mod = opzioni[selezione]
             dati_da_mod = corsi_tutti[cid_da_mod]
+            
             with st.form("form_modifica"):
                 new_nom = st.text_input("Dipendente", value=dati_da_mod.get('nominativo', ''))
                 new_corso = st.text_input("Corso", value=dati_da_mod.get('corso', ''))
-                new_data_s = st.date_input("Data Svolgimento", value=datetime.strptime(dati_da_mod.get('data_svolto'), "%Y-%m-%d"), format="DD/MM/YYYY")
+                
+                # CORREZIONE ERRORE DATA:
+                data_svolto_raw = dati_da_mod.get('data_svolto')
+                valore_default_data = datetime.strptime(data_svolto_raw, "%Y-%m-%d") if data_svolto_raw else datetime.today()
+                
+                new_data_s = st.date_input("Data Svolgimento", value=valore_default_data, format="DD/MM/YYYY")
                 new_val = st.selectbox("Anni Validità", [1, 2, 3, 5, 10], index=3)
                 if st.form_submit_button("Salva Modifiche"):
                     scadenza = new_data_s.replace(year=new_data_s.year + new_val)
@@ -191,38 +192,20 @@ with tab1:
                 delete_data('/corsi', opzioni_del[selezione_del])
                 st.rerun()
 
-    with st.expander("🔄 Reset Notifiche"):
-        corsi_reset = get_data('/corsi')
-        opzioni_reset = {f"{d.get('nominativo')} - {d.get('corso')}": cid for cid, d in corsi_reset.items() if d.get('notifica_inviata', False)}
-        if opzioni_reset:
-            sel = st.selectbox("Corso da resettare:", list(opzioni_reset.keys()))
-            if st.button("Ripristina Stato"):
-                reset_notifica(opzioni_reset[sel])
-                st.rerun()
-
+    # Visualizzazione Tabella
     st.divider()
-    
-    col_search, col_filter = st.columns([3, 1])
-    query = col_search.text_input("🔍 Cerca...")
-    filtro_tipo = col_filter.selectbox("Filtra:", ["Tutto", "Nominativo", "Corso", "In scadenza", "Scaduto"])
-    
     corsi = get_data('/corsi')
     if corsi:
         data_list = []
         oggi = datetime.today().date()
         soglia = oggi + timedelta(days=30)
         for cid, d in corsi.items():
-            d_scad = datetime.strptime(d['data_scadenza'], "%Y-%m-%d").date()
-            stato = "✅ Mail inviata" if d.get('notifica_inviata', False) else ("🔴 SCADUTO" if d_scad < oggi else ("⚠️ IN SCADENZA" if d_scad <= soglia else "🟢 IN CORSO"))
-            
-            match = (filtro_tipo == "Tutto") or (filtro_tipo == "Scaduto" and stato == "🔴 SCADUTO") or (filtro_tipo == "In scadenza" and stato == "⚠️ IN SCADENZA") or (filtro_tipo == "Nominativo" and query.lower() in d['nominativo'].lower()) or (filtro_tipo == "Corso" and query.lower() in d['corso'].lower())
-            
-            if match:
-                data_list.append({"Stato": stato, "Nominativo": d['nominativo'], "Corso": d['corso'], "Validità (Anni)": (d_scad.year - datetime.strptime(d['data_svolto'], "%Y-%m-%d").year), "Data Scadenza": d_scad.strftime("%d/%m/%Y")})
+            try:
+                d_scad = datetime.strptime(d['data_scadenza'], "%Y-%m-%d").date()
+                stato = "✅ Mail inviata" if d.get('notifica_inviata', False) else ("🔴 SCADUTO" if d_scad < oggi else ("⚠️ IN SCADENZA" if d_scad <= soglia else "🟢 IN CORSO"))
+                data_list.append({"Stato": stato, "Nominativo": d.get('nominativo', ''), "Corso": d.get('corso', ''), "Data Scadenza": d_scad.strftime("%d/%m/%Y")})
+            except: continue
         
         if data_list:
             df = pd.DataFrame(data_list)
-            priorita = {"🔴 SCADUTO": 0, "⚠️ IN SCADENZA": 1, "🟢 IN CORSO": 2, "✅ Mail inviata": 3}
-            df['prio'] = df['Stato'].map(priorita)
-            df = df.sort_values(by=['prio', 'Nominativo', 'Data Scadenza']).drop(columns=['prio'])
-            st.dataframe(df.style.set_properties(subset=['Validità (Anni)'], **{'text-align': 'center'}), use_container_width=True, hide_index=True)
+            st.dataframe(df, use_container_width=True, hide_index=True)
