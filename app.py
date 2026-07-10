@@ -14,9 +14,13 @@ import io
 # --- 1. CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="Sicurezza | Guasti Gino", layout="wide")
 
-# --- 2. SISTEMA DI LOGIN (PERSISTENTE) ---
+# --- 2. SISTEMA DI LOGIN (PERSISTENTE VIA URL) ---
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
+
+# Verifica se il parametro nell'URL è presente per mantenere la sessione
+if st.query_params.get("logged_in") == "true":
+    st.session_state.authenticated = True
 
 if not st.session_state.authenticated:
     st.title("🔐 Accesso Riservato - Guasti Gino Impianti")
@@ -26,10 +30,11 @@ if not st.session_state.authenticated:
         if st.form_submit_button("Accedi"):
             if user_input == "GuastiGino" and pass_input == "Guasti2026!":
                 st.session_state.authenticated = True
+                st.query_params["logged_in"] = "true" # Forza la persistenza nell'URL
                 st.rerun()
             else:
                 st.error("Username o Password errati")
-    st.stop()  # Blocca l'esecuzione finché non è autenticato
+    st.stop() 
 
 # --- 3. CONNESSIONE A FIREBASE ---
 DB_URL = "https://corsi-sicurezza-ggi-default-rtdb.europe-west1.firebasedatabase.app/"
@@ -146,6 +151,7 @@ st.title("Guasti Gino Impianti S.r.l.")
 with st.sidebar:
     if st.button("🚪 Logout"):
         st.session_state.authenticated = False
+        st.query_params.clear() # Pulisce l'URL per completare il logout
         st.rerun()
     st.header("⚙️ Impostazioni Sistema")
     with st.expander("📧 Configurazione SMTP"):
