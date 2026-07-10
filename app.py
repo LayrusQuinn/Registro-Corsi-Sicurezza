@@ -60,10 +60,26 @@ def delete_data(path, item_id):
 
 # --- 5. LOGICA EXCEL ---
 def esporta_excel(dati):
-    df = pd.DataFrame.from_dict(dati, orient='index')
+    lista_dati = []
+    for cid, d in dati.items():
+        lista_dati.append({
+            "Nominativo": d.get('nominativo', ''),
+            "Corso": d.get('corso', ''),
+            "Data Svolgimento": d.get('data_svolto', ''),
+            "Data Scadenza": d.get('data_scadenza', '')
+        })
+    
+    df = pd.DataFrame(lista_dati)
+    df = df[["Nominativo", "Corso", "Data Svolgimento", "Data Scadenza"]]
+    
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Registro Corsi')
+        workbook  = writer.book
+        worksheet = writer.sheets['Registro Corsi']
+        for i, col in enumerate(df.columns):
+            column_len = max(df[col].astype(str).map(len).max(), len(col)) + 2
+            worksheet.set_column(i, i, column_len)
     return output.getvalue()
 
 # --- 6. LOGICA EMAIL PROFESSIONALE ---
