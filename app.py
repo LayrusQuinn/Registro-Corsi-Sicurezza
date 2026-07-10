@@ -9,6 +9,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
 import time
+import io
 
 # --- 1. CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="Sicurezza | Guasti Gino", layout="wide")
@@ -57,7 +58,15 @@ def push_data(path, data):
 def delete_data(path, item_id):
     db.reference(f'{path}/{item_id}', url=DB_URL).delete()
 
-# --- 5. LOGICA EMAIL PROFESSIONALE ---
+# --- 5. LOGICA EXCEL ---
+def esporta_excel(dati):
+    df = pd.DataFrame.from_dict(dati, orient='index')
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Registro Corsi')
+    return output.getvalue()
+
+# --- 6. LOGICA EMAIL PROFESSIONALE ---
 def invia_email(nominativo, corso, data_scadenza):
     config = get_data('/config')
     mittente = config.get('email_mittente', '')
@@ -102,7 +111,7 @@ def invia_email(nominativo, corso, data_scadenza):
     except Exception as e:
         return f"Errore: {e}"
 
-# --- 6. DIALOG PER ELIMINAZIONE ---
+# --- 7. DIALOG PER ELIMINAZIONE ---
 @st.dialog("Conferma eliminazione")
 def conferma_eliminazione(cid):
     st.write("Vuoi davvero eliminare questo corso?")
@@ -114,7 +123,7 @@ def conferma_eliminazione(cid):
     if col_no.button("Annulla"):
         st.rerun()
 
-# --- 7. INTERFACCIA UTENTE ---
+# --- 8. INTERFACCIA UTENTE ---
 st.title("Guasti Gino Impianti S.r.l.")
 
 # --- SIDEBAR ---
@@ -173,6 +182,19 @@ with st.sidebar:
         st.success("Tutte le notifiche sono state resettate!")
         time.sleep(0.5)
         st.rerun()
+
+    # --- ESPORTAZIONE EXCEL ---
+    st.divider()
+    corsi_per_export = get_data('/corsi')
+    if corsi_per_export:
+        excel_data = esporta_excel(corsi_per_export)
+        st.download_button(
+            label="📥 Esporta in Excel",
+            data=excel_data,
+            file_name="Registro_Corsi_Sicurezza.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
 
 # --- MAIN ---
 tab1, tab2 = st.tabs(["📋 Registro Corsi", "➕ Aggiungi Corso"])
