@@ -169,11 +169,9 @@ tab1, tab2 = st.tabs(["📋 Registro Corsi", "➕ Aggiungi Corso"])
 opzioni_corsi = ["Preposto", "RLS", "Primo Soccorso", "Antincendio", "PLE", "Muletto", "Base 4H", "Specifica 12H", "DP13 Lavori in quota", "Altro"]
 
 with tab2:
-    # Inizializzazione stato per il nome persistente e chiave form
     if 'nom_dipendente' not in st.session_state: st.session_state.nom_dipendente = ""
     if 'form_key' not in st.session_state: st.session_state.form_key = 0
     
-    # Campo input nome fuori dal form per mantenerlo persistente
     nom_input = st.text_input("Dipendente", value=st.session_state.nom_dipendente)
     st.session_state.nom_dipendente = nom_input
 
@@ -186,8 +184,14 @@ with tab2:
         if st.form_submit_button("💾 Salva Corso"):
             scadenza = data_s.replace(year=data_s.year + val)
             push_data('/corsi', {"nominativo": st.session_state.nom_dipendente, "corso": corso_add, "data_svolto": str(data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
-            st.session_state.form_key += 1 # Forza reset campi del form
+            
+            st.session_state.last_message = "Corso aggiunto correttamente!"
+            st.session_state.form_key += 1
             st.rerun()
+
+    if 'last_message' in st.session_state:
+        st.success(st.session_state.last_message)
+        del st.session_state.last_message
 
 with tab1:
     st.subheader("Filtri")
