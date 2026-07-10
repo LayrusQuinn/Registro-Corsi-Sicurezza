@@ -6,7 +6,7 @@ on:
       - main
   # Esecuzione automatica ogni mattina alle 06:00 UTC (08:00 italiane)
   schedule:
-    - cron: '11 13 * * *'
+    - cron: '16 13 * * *'
   # Permette di lanciarlo manualmente dalla tab "Actions" su GitHub
   workflow_dispatch:
 
