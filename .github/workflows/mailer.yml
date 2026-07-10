@@ -4,9 +4,9 @@ on:
   push:
     branches:
       - main
-  # Esecuzione automatica ogni mattina alle 06:00 UTC (08:00 italiane)
+  # Esecuzione automatica alle 10:30 italiane (08:30 UTC)
   schedule:
-    - cron: '30 8  * * *'
+    - cron: '30 8 * * *'
   # Permette di lanciarlo manualmente dalla tab "Actions" su GitHub
   workflow_dispatch:
 
@@ -29,6 +29,8 @@ jobs:
       - name: Esecuzione script mailer
         run: python run_mailer.py
         env:
-          FIREBASE_JSON_CONTENT: ${{ secrets.FIREBASE_JSON_CONTENT }}
+          # Mappatura corretta: il segreto FIREBASE_JSON viene assegnato 
+          # alla variabile d'ambiente attesa dallo script (FIREBASE_JSON_CONTENT)
+          FIREBASE_JSON_CONTENT: ${{ secrets.FIREBASE_JSON }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_PASS: ${{ secrets.GMAIL_PASS }}
