@@ -41,6 +41,7 @@ if not firebase_admin._apps:
         st.error(f"Errore connessione DB: {e}")
 
 # --- 4. FUNZIONI DI DATABASE ---
+@st.cache_data(ttl=60)
 def get_data(path):
     try:
         dati = db.reference(path, url=DB_URL).get()
@@ -111,6 +112,7 @@ def conferma_eliminazione(cid):
     col_si, col_no = st.columns(2)
     if col_si.button("Sì, elimina"):
         delete_data('/corsi', cid)
+        st.cache_data.clear()
         st.rerun()
     if col_no.button("Annulla"):
         st.rerun()
@@ -131,6 +133,7 @@ with st.sidebar:
             if st.form_submit_button("Salva Credenziali"):
                 set_data('/config/email_mittente', email_mit)
                 set_data('/config/password_mittente', pass_mit)
+                st.cache_data.clear()
                 st.rerun()
     
     with st.expander("👥 Destinatari"):
@@ -140,11 +143,13 @@ with st.sidebar:
             col1.write(d_dati.get('email', ''))
             if col2.button("🗑️", key=f"del_{d_id}"):
                 delete_data('/destinatari', d_id)
+                st.cache_data.clear()
                 st.rerun()
         nuova_email = st.text_input("Aggiungi email:")
         if st.button("Aggiungi"):
             if "@" in nuova_email:
                 push_data('/destinatari', {"email": nuova_email})
+                st.cache_data.clear()
                 st.rerun()
     
     st.divider()
@@ -162,6 +167,7 @@ with st.sidebar:
                             db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True})
                             inviati += 1
                 except: continue
+        st.cache_data.clear()
         st.success(f"Scansione completata! Inviate {inviati} email.")
 
 # --- MAIN ---
@@ -187,6 +193,7 @@ with tab2:
             
             st.session_state.last_message = "Corso aggiunto correttamente!"
             st.session_state.form_key += 1
+            st.cache_data.clear()
             st.rerun()
 
     if 'last_message' in st.session_state:
@@ -233,9 +240,11 @@ with tab1:
                     if col_mod.form_submit_button("Salva Modifiche"):
                         scadenza = new_data_s.replace(year=new_data_s.year + new_val)
                         db.reference(f'/corsi/{cid_da_mod}', url=DB_URL).update({"nominativo": new_nom, "corso": new_corso, "data_svolto": str(new_data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
+                        st.cache_data.clear()
                         st.rerun()
                     if col_del.form_submit_button("Elimina Definitivamente", type="primary"):
                         delete_data('/corsi', cid_da_mod)
+                        st.cache_data.clear()
                         st.rerun()
 
     st.divider()
@@ -275,5 +284,6 @@ with tab1:
                     
                     if cols[6].button("🔄", key=f"res_{cid}"):
                         reset_notifica(cid)
+                        st.cache_data.clear()
                         st.rerun()
         except: continue
