@@ -136,6 +136,20 @@ with st.sidebar:
                 set_data('/config/email_mittente', email_mit)
                 set_data('/config/password_mittente', pass_mit)
                 st.rerun()
+    with st.expander("👥 Destinatari"):
+        dest_attuali = get_data('/destinatari')
+        for d_id, d_dati in dest_attuali.items():
+            col1, col2 = st.columns([3, 1])
+            col1.write(d_dati.get('email', ''))
+            if col2.button("🗑️", key=f"del_{d_id}"):
+                delete_data('/destinatari', d_id)
+                st.rerun()
+        nuova_email = st.text_input("Aggiungi email:")
+        if st.button("Aggiungi"):
+            if "@" in nuova_email:
+                push_data('/destinatari', {"email": nuova_email})
+                st.rerun()
+    st.divider()
     if st.button("🚀 Esegui Scansione", type="primary", use_container_width=True):
         corsi = get_data('/corsi')
         oggi = datetime.today().date()
@@ -149,6 +163,16 @@ with st.sidebar:
                         db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True})
                 except: continue
         st.rerun()
+    if st.button("🔄 Reset Mail Inviate"):
+        corsi = get_data('/corsi')
+        if corsi:
+            for cid, dati in corsi.items():
+                db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': False})
+        st.rerun()
+    st.divider()
+    corsi_per_export = get_data('/corsi')
+    if corsi_per_export:
+        st.download_button("📥 Esporta Excel", data=esporta_excel(corsi_per_export), file_name="Registro.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
 
 # --- MAIN ---
 tab1, tab2 = st.tabs(["📋 Registro Corsi", "➕ Aggiungi Corso"])
@@ -169,36 +193,41 @@ with tab2:
 with tab1:
     if 'corsi_cache' not in st.session_state: st.session_state.corsi_cache = get_data('/corsi')
     corsi = st.session_state.corsi_cache
-    search = st.text_input("🔍 Cerca dipendente o corso")
-    filtro_stato = st.selectbox("Filtra per stato", ["Tutti", "🟢 IN CORSO", "⚠️ IN SCADENZA", "🔴 SCADUTO", "✅ Mail inviata"])
+    c1, c2 = st.columns(2)
+    search = c1.text_input("🔍 Cerca")
+    filtro_stato = c2.selectbox("Filtra", ["Tutti", "🟢 IN CORSO", "⚠️ IN SCADENZA", "🔴 SCADUTO", "✅ Mail inviata"])
+    
+    with st.expander("✏️ Modifica o 🗑️ Elimina Corso"):
+        if corsi:
+            lista = ["Seleziona..."] + [f"{d.get('nominativo')} - {d.get('corso')}" for cid, d in corsi.items()]
+            sel = st.selectbox("Seleziona:", lista)
+            if sel != "Seleziona...":
+                mappa = {f"{d.get('nominativo')} - {d.get('corso')}": cid for cid, d in corsi.items()}
+                cid_m = mappa[sel]
+                dati = corsi[cid_m]
+                new_nom = st.text_input("Nome", value=dati.get('nominativo'))
+                new_c = st.text_input("Corso", value=dati.get('corso'))
+                if st.button("Salva Modifiche"):
+                    db.reference(f'/corsi/{cid_m}', url=DB_URL).update({"nominativo": new_nom, "corso": new_c})
+                    st.rerun()
 
-    st.divider()
     oggi = datetime.today().date()
     soglia = oggi + timedelta(days=30)
-    
-    if corsi:
-        for cid, d in corsi.items():
-            try:
-                d_svolto = datetime.strptime(d['data_svolto'], "%Y-%m-%d").date()
-                d_scad = datetime.strptime(d['data_scadenza'], "%Y-%m-%d").date()
-                
-                if d_scad < oggi:
-                    stato, colore = "🔴 SCADUTO", "red"
-                elif d_scad <= soglia:
-                    stato, colore = "⚠️ IN SCADENZA", "orange"
-                elif d.get('notifica_inviata', False):
-                    stato, colore = "✅ Mail inviata", "green"
-                else:
-                    stato, colore = "🟢 IN CORSO", "blue"
-
-                if (search.lower() in d.get('nominativo', '').lower() or search.lower() in d.get('corso', '').lower()):
-                    if filtro_stato == "Tutti" or filtro_stato == stato:
-                        with st.container(border=True):
-                            cols = st.columns([2, 2, 1.5, 1.5, 1.2, 0.8])
-                            cols[0].write(d.get('nominativo', ''))
-                            cols[1].write(d.get('corso', ''))
-                            cols[2].write(d_svolto.strftime("%d/%m/%Y"))
-                            cols[3].write(d_scad.strftime("%d/%m/%Y"))
-                            cols[4].markdown(f":{colore}[**{stato}**]")
-                            if cols[5].button("🗑️", key=f"del_{cid}"): conferma_eliminazione(cid)
-            except: continue
+    for cid, d in corsi.items():
+        try:
+            d_scad = datetime.strptime(d['data_scadenza'], "%Y-%m-%d").date()
+            if d_scad < oggi: stato, colore = "🔴 SCADUTO", "red"
+            elif d_scad <= soglia: stato, colore = "⚠️ IN SCADENZA", "orange"
+            elif d.get('notifica_inviata', False): stato, colore = "✅ Mail inviata", "green"
+            else: stato, colore = "🟢 IN CORSO", "blue"
+            
+            if (search.lower() in d.get('nominativo', '').lower()) and (filtro_stato == "Tutti" or filtro_stato == stato):
+                with st.container(border=True):
+                    cols = st.columns([2, 2, 1, 1, 1, 0.5])
+                    cols[0].write(d.get('nominativo'))
+                    cols[1].write(d.get('corso'))
+                    cols[2].write(d.get('data_svolto'))
+                    cols[3].write(d.get('data_scadenza'))
+                    cols[4].markdown(f":{colore}[**{stato}**]")
+                    if cols[5].button("🗑️", key=f"del_{cid}"): conferma_eliminazione(cid)
+        except: continue
