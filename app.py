@@ -57,18 +57,13 @@ def push_data(path, data):
 def delete_data(path, item_id):
     db.reference(f'{path}/{item_id}', url=DB_URL).delete()
 
-def reset_notifica(item_id):
-    db.reference(f'/corsi/{item_id}', url=DB_URL).update({'notifica_inviata': False})
-    time.sleep(0.3) # Piccolo delay per consolidamento server
-    st.session_state.just_updated = True
-
 # --- 5. LOGICA EMAIL PROFESSIONALE ---
 def invia_email(nominativo, corso, data_scadenza):
     config = get_data('/config')
     mittente = config.get('email_mittente', '')
     password = config.get('password_mittente', '')
     destinatari_dict = get_data('/destinatari')
-    destinatari = [v['email'] for v in destinatari_dict.values()] if destinatari_dict else []
+    destinatari = [v['email'] for v in destinatar_dict.values()] if destinatar_dict else []
 
     if not destinatari or not password: return "Errore Config"
 
@@ -155,7 +150,6 @@ with st.sidebar:
         corsi = get_data('/corsi')
         oggi = datetime.today().date()
         soglia = oggi + timedelta(days=30)
-        inviati = 0
         for cid, dati in corsi.items():
             if 'data_scadenza' in dati:
                 try:
@@ -163,7 +157,6 @@ with st.sidebar:
                     if d_scad <= soglia and not dati.get('notifica_inviata', False):
                         if "Inviato" in invia_email(dati.get('nominativo'), dati.get('corso'), dati.get('data_scadenza')):
                             db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True})
-                            inviati += 1
                 except: continue
         st.rerun()
 
@@ -185,18 +178,16 @@ with tab2:
         if st.form_submit_button("💾 Salva Corso"):
             scadenza = data_s.replace(year=data_s.year + val)
             push_data('/corsi', {"nominativo": st.session_state.nom_dipendente, "corso": corso_add, "data_svolto": str(data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
-            st.session_state.last_message = "Corso aggiunto correttamente!"
             st.session_state.form_key += 1
             st.rerun()
 
-    if 'last_message' in st.session_state:
-        st.success(st.session_state.last_message)
-        del st.session_state.last_message
-
 with tab1:
-    # LOGICA ANTI-DOPPIO CLICK
-    if st.session_state.get('just_updated', False):
-        st.session_state.just_updated = False
+    # --- GESTORE RESET PENDING (ANTI-DOPPIO CLICK) ---
+    if 'pending_reset' in st.session_state:
+        cid_to_reset = st.session_state.pending_reset
+        del st.session_state.pending_reset
+        db.reference(f'/corsi/{cid_to_reset}', url=DB_URL).update({'notifica_inviata': False})
+        time.sleep(0.5) 
         st.rerun()
 
     st.subheader("Filtri")
@@ -257,5 +248,7 @@ with tab1:
                         cols[3].write(d_scad.strftime("%d/%m/%Y"))
                         cols[4].write(stato)
                         if cols[5].button("🗑️", key=f"del_{cid}"): conferma_eliminazione(cid)
-                        if cols[6].button("🔄", key=f"res_{cid}"): reset_notifica(cid)
+                        if cols[6].button("🔄", key=f"res_{cid}"):
+                            st.session_state.pending_reset = cid
+                            st.rerun()
             except: continue
