@@ -190,16 +190,20 @@ with tab1:
     oggi = datetime.today().date()
     soglia = oggi + timedelta(days=30)
     
-    cols_header = st.columns([2, 2, 2, 1.5, 1])
+    # Intestazione aggiornata con Data Svolgimento
+    cols_header = st.columns([2, 2, 1.5, 1.5, 1, 1])
     cols_header[0].write("**Nominativo**")
     cols_header[1].write("**Corso**")
-    cols_header[2].write("**Scadenza**")
-    cols_header[3].write("**Stato**")
-    cols_header[4].write("**Reset**")
+    cols_header[2].write("**Svolgimento**")
+    cols_header[3].write("**Scadenza**")
+    cols_header[4].write("**Stato**")
+    cols_header[5].write("**Reset**")
 
     for cid, d in corsi.items():
         try:
+            d_svolto = datetime.strptime(d['data_svolto'], "%Y-%m-%d").date()
             d_scad = datetime.strptime(d['data_scadenza'], "%Y-%m-%d").date()
+            
             if d.get('notifica_inviata', False): stato = "✅ Mail inviata"
             elif d_scad < oggi: stato = "🔴 SCADUTO"
             elif d_scad <= soglia: stato = "⚠️ IN SCADENZA"
@@ -207,12 +211,13 @@ with tab1:
             
             if (search.lower() in d.get('nominativo', '').lower() or search.lower() in d.get('corso', '').lower()):
                 if filtro_stato == "Tutti" or filtro_stato == stato:
-                    cols = st.columns([2, 2, 2, 1.5, 1])
+                    cols = st.columns([2, 2, 1.5, 1.5, 1, 1])
                     cols[0].write(d.get('nominativo', ''))
                     cols[1].write(d.get('corso', ''))
-                    cols[2].write(d_scad.strftime("%d/%m/%Y"))
-                    cols[3].write(stato)
-                    if cols[4].button("🔄", key=f"res_{cid}"):
+                    cols[2].write(d_svolto.strftime("%d/%m/%Y"))
+                    cols[3].write(d_scad.strftime("%d/%m/%Y"))
+                    cols[4].write(stato)
+                    if cols[5].button("🔄", key=f"res_{cid}"):
                         reset_notifica(cid)
                         st.rerun()
         except: continue
