@@ -147,7 +147,7 @@ with st.sidebar:
                 st.rerun()
     
     st.divider()
-    if st.button("🚀 Esegui Scansione", type="primary"):
+    if st.button("🚀 Esegui Scansione", type="primary", use_container_width=True):
         corsi = get_data('/corsi')
         oggi = datetime.today().date()
         soglia = oggi + timedelta(days=30)
@@ -157,8 +157,20 @@ with st.sidebar:
                 if d_scad <= soglia and not dati.get('notifica_inviata', False):
                     if "Inviato" in invia_email(dati.get('nominativo'), dati.get('corso'), dati.get('data_scadenza')):
                         db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True})
-            except: continue
+                except: continue
         if 'corsi_cache' in st.session_state: del st.session_state.corsi_cache
+        st.rerun()
+
+    # --- NUOVO PULSANTE DI RESET GLOBALE ---
+    if st.button("🔄 Reset Mail Inviate", use_container_width=True):
+        corsi = get_data('/corsi')
+        if corsi:
+            for cid, dati in corsi.items():
+                if dati.get('notifica_inviata', False):
+                    db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': False})
+        if 'corsi_cache' in st.session_state: del st.session_state.corsi_cache
+        st.success("Tutte le notifiche sono state resettate!")
+        time.sleep(0.5)
         st.rerun()
 
 # --- MAIN ---
@@ -184,15 +196,6 @@ with tab2:
             st.rerun()
 
 with tab1:
-    # --- GESTORE RESET (CACHE LOCALE) ---
-    if 'pending_reset' in st.session_state:
-        cid_to_reset = st.session_state.pending_reset
-        db.reference(f'/corsi/{cid_to_reset}', url=DB_URL).update({'notifica_inviata': False})
-        if 'corsi_cache' in st.session_state:
-            st.session_state.corsi_cache[cid_to_reset]['notifica_inviata'] = False
-        del st.session_state.pending_reset
-        st.rerun()
-
     if 'corsi_cache' not in st.session_state:
         st.session_state.corsi_cache = get_data('/corsi')
     corsi = st.session_state.corsi_cache
@@ -231,14 +234,14 @@ with tab1:
     oggi = datetime.today().date()
     soglia = oggi + timedelta(days=30)
     
-    cols_header = st.columns([2, 2, 1.5, 1.5, 1, 1, 1])
+    # Rimossa la settima colonna dedicata al reset individuale
+    cols_header = st.columns([2, 2, 1.5, 1.5, 1, 1])
     cols_header[0].write("**Nominativo**")
     cols_header[1].write("**Corso**")
     cols_header[2].write("**Svolgimento**")
     cols_header[3].write("**Scadenza**")
     cols_header[4].write("**Stato**")
     cols_header[5].write("**Elimina**")
-    cols_header[6].write("**Reset**")
 
     if corsi:
         for cid, d in corsi.items():
@@ -248,14 +251,12 @@ with tab1:
                 stato = "✅ Mail inviata" if d.get('notifica_inviata', False) else ("🔴 SCADUTO" if d_scad < oggi else ("⚠️ IN SCADENZA" if d_scad <= soglia else "🟢 IN CORSO"))
                 if (search.lower() in d.get('nominativo', '').lower() or search.lower() in d.get('corso', '').lower()):
                     if filtro_stato == "Tutti" or filtro_stato == stato:
-                        cols = st.columns([2, 2, 1.5, 1.5, 1, 1, 1])
+                        # Rimossa la settima colonna individuale dal rendering delle righe
+                        cols = st.columns([2, 2, 1.5, 1.5, 1, 1])
                         cols[0].write(d.get('nominativo', ''))
                         cols[1].write(d.get('corso', ''))
                         cols[2].write(d_svolto.strftime("%d/%m/%Y"))
                         cols[3].write(d_scad.strftime("%d/%m/%Y"))
                         cols[4].write(stato)
                         if cols[5].button("🗑️", key=f"del_{cid}"): conferma_eliminazione(cid)
-                        if cols[6].button("🔄", key=f"res_{cid}"):
-                            st.session_state.pending_reset = cid
-                            st.rerun()
             except: continue
