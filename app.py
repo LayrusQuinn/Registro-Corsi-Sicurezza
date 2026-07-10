@@ -8,6 +8,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
+import time
 
 # --- 1. CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="Sicurezza | Guasti Gino", layout="wide")
@@ -59,7 +60,8 @@ def delete_data(path, item_id):
 
 def reset_notifica(item_id):
     db.reference(f'/corsi/{item_id}', url=DB_URL).update({'notifica_inviata': False})
-    st.session_state.force_refresh = True
+    time.sleep(0.5) # Attesa per propagazione Firebase
+    st.cache_data.clear()
 
 # --- 5. LOGICA EMAIL PROFESSIONALE ---
 def invia_email(nominativo, corso, data_scadenza):
@@ -249,13 +251,6 @@ with tab1:
                         st.rerun()
 
     st.divider()
-    
-    # Gestione del force_refresh
-    if st.session_state.get('force_refresh', False):
-        st.session_state.force_refresh = False
-        st.cache_data.clear()
-        st.rerun()
-
     corsi = get_data('/corsi')
     oggi = datetime.today().date()
     soglia = oggi + timedelta(days=30)
