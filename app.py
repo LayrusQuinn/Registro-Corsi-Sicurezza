@@ -135,11 +135,13 @@ with st.sidebar:
 
 # --- MAIN ---
 tab1, tab2 = st.tabs(["📋 Registro Corsi", "➕ Aggiungi Corso"])
+opzioni_corsi = ["Preposto", "RLS", "Primo Soccorso", "Antincendio", "PLE", "Muletto", "Base 4H", "Specifica 12H", "DP13 Lavori in quota", "Altro"]
 
 with tab2:
     with st.form("form_corso", clear_on_submit=True):
         nom = st.text_input("Dipendente")
-        corso = st.text_input("Corso")
+        scelta_corso = st.selectbox("Corso", opzioni_corsi)
+        corso = st.text_input("Specifica nome corso (se hai scelto Altro)", value="" if scelta_corso == "Altro" else scelta_corso)
         data_s = st.date_input("Data Svolgimento", format="DD/MM/YYYY")
         val = st.selectbox("Anni Validità", [1, 2, 3, 5, 10], index=3)
         if st.form_submit_button("Salva Corso"):
@@ -148,7 +150,6 @@ with tab2:
             st.rerun()
 
 with tab1:
-    # --- FILTRI E RICERCA ---
     st.subheader("Filtri")
     c1, c2 = st.columns(2)
     search = c1.text_input("🔍 Cerca dipendente o corso")
@@ -164,22 +165,27 @@ with tab1:
             
             with st.form("form_modifica"):
                 new_nom = st.text_input("Dipendente", value=dati_da_mod.get('nominativo', ''))
-                new_corso = st.text_input("Corso", value=dati_da_mod.get('corso', ''))
+                
+                sel_idx = opzioni_corsi.index(dati_da_mod.get('corso', 'Altro')) if dati_da_mod.get('corso') in opzioni_corsi else 9
+                new_scelta = st.selectbox("Corso", opzioni_corsi, index=sel_idx)
+                new_corso = st.text_input("Specifica nome corso", value=dati_da_mod.get('corso', ''))
+                
                 data_svolto_raw = dati_da_mod.get('data_svolto')
                 valore_default_data = datetime.strptime(data_svolto_raw, "%Y-%m-%d") if data_svolto_raw else datetime.today()
                 new_data_s = st.date_input("Data Svolgimento", value=valore_default_data, format="DD/MM/YYYY")
                 new_val = st.selectbox("Anni Validità", [1, 2, 3, 5, 10], index=3)
+                
                 col_mod, col_del = st.columns(2)
                 if col_mod.form_submit_button("Salva Modifiche"):
+                    corso_finale = new_corso if new_scelta == "Altro" else new_scelta
                     scadenza = new_data_s.replace(year=new_data_s.year + new_val)
-                    db.reference(f'/corsi/{cid_da_mod}', url=DB_URL).update({"nominativo": new_nom, "corso": new_corso, "data_svolto": str(new_data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
+                    db.reference(f'/corsi/{cid_da_mod}', url=DB_URL).update({"nominativo": new_nom, "corso": corso_finale, "data_svolto": str(new_data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
                     st.rerun()
                 if col_del.form_submit_button("Elimina Definitivamente", type="primary"):
                     delete_data('/corsi', cid_da_mod)
                     st.rerun()
 
     st.divider()
-    # --- TABELLA CON RESET ---
     corsi = get_data('/corsi')
     oggi = datetime.today().date()
     soglia = oggi + timedelta(days=30)
