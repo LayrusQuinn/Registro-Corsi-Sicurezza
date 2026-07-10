@@ -1,8 +1,6 @@
 name: Invio Email Automatico
 
 on:
-  schedule:
-    - cron: '0 8 * * *'
   workflow_dispatch:
 
 jobs:
@@ -19,8 +17,9 @@ jobs:
       - name: Install dependencies
         run: pip install firebase-admin
         
-      - name: Run Mailer
+      - name: Run Test
         env:
-          # Usiamo un nome leggermente diverso per forzare GitHub a rileggere il secret
-          SECRET_KEY_FIREBASE: ${{ secrets.FIREBASE_JSON }}
-        run: python run_mailer.py
+          # Usiamo il segreto di prova che deve contenere solo "1234567890"
+          TEST_VALORE: ${{ secrets.TEST_SECRET }}
+        run: |
+          python -c "import os; print(f'DEBUG: Lunghezza TEST_VALORE: {len(str(os.environ.get(\"TEST_VALORE\")))}'); print(f'DEBUG: Valore ricevuto: {os.environ.get(\"TEST_VALORE\")}')"
