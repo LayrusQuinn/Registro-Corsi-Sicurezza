@@ -220,7 +220,14 @@ with tab1:
                     data_svolto_raw = dati_da_mod.get('data_svolto')
                     val_data = datetime.strptime(data_svolto_raw, "%Y-%m-%d") if data_svolto_raw else datetime.today()
                     new_data_s = st.date_input("Data Svolgimento", value=val_data, format="DD/MM/YYYY")
-                    new_val = st.selectbox("Anni Validità", [1, 2, 3, 5, 10], index=3)
+                    
+                    anni_opzioni = [1, 2, 3, 5, 10]
+                    d_scad_raw = datetime.strptime(dati_da_mod.get('data_scadenza'), "%Y-%m-%d")
+                    d_svol_raw = datetime.strptime(dati_da_mod.get('data_svolto'), "%Y-%m-%d")
+                    anni_salvati = d_scad_raw.year - d_svol_raw.year
+                    idx_anni = anni_opzioni.index(anni_salvati) if anni_salvati in anni_opzioni else 3
+                    
+                    new_val = st.selectbox("Anni Validità", anni_opzioni, index=idx_anni, key=f"mod_anni_{cid_da_mod}")
                     
                     col_mod, col_del = st.columns(2)
                     if col_mod.form_submit_button("Salva Modifiche"):
