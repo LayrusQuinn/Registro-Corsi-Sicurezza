@@ -4,9 +4,9 @@ on:
   push:
     branches:
       - main
-  # Esecuzione automatica alle 10:30 italiane (08:30 UTC)
+  # Esecuzione automatica ogni mattina alle 06:00 UTC (08:00 italiane)
   schedule:
-    - cron: '01 9 * * *'
+    - cron: '0 6 * * *'
   # Permette di lanciarlo manualmente dalla tab "Actions" su GitHub
   workflow_dispatch:
 
