@@ -202,21 +202,21 @@ with tab1:
     with st.expander("✏️ Modifica o 🗑️ Elimina Corso"):
         corsi_tutti = get_data('/corsi')
         if corsi_tutti:
-            opzioni = { "Seleziona un corso...": None }
-            opzioni.update({f"{d.get('nominativo')} - {d.get('corso')}": cid for cid, d in corsi_tutti.items()})
+            lista_corsi = ["Seleziona un corso..."] + [f"{d.get('nominativo')} - {d.get('corso')}" for cid, d in corsi_tutti.items()]
+            mappa_opzioni = {f"{d.get('nominativo')} - {d.get('corso')}": cid for cid, d in corsi_tutti.items()}
             
-            selezione = st.selectbox("Seleziona:", list(opzioni.keys()), key="sel_mod")
+            selezione = st.selectbox("Seleziona:", lista_corsi, key="sel_mod")
             
-            if opzioni[selezione] is not None:
-                cid_da_mod = opzioni[selezione]
+            if selezione != "Seleziona un corso...":
+                cid_da_mod = mappa_opzioni[selezione]
                 dati_da_mod = corsi_tutti[cid_da_mod]
                 
-                new_nom = st.text_input("Dipendente", value=dati_da_mod.get('nominativo', ''), key="mod_nom")
+                new_nom = st.text_input("Dipendente", value=dati_da_mod.get('nominativo', ''), key=f"mod_nom_{cid_da_mod}")
                 idx_def = opzioni_corsi.index(dati_da_mod.get('corso')) if dati_da_mod.get('corso') in opzioni_corsi else 9
-                new_scelta = st.selectbox("Corso", opzioni_corsi, index=idx_def, key="mod_sel")
-                new_corso = st.text_input("Specifica nome corso", value=dati_da_mod.get('corso', ''), key="mod_altro") if new_scelta == "Altro" else new_scelta
+                new_scelta = st.selectbox("Corso", opzioni_corsi, index=idx_def, key=f"mod_sel_{cid_da_mod}")
+                new_corso = st.text_input("Specifica nome corso", value=dati_da_mod.get('corso', ''), key=f"mod_altro_{cid_da_mod}") if new_scelta == "Altro" else new_scelta
                 
-                with st.form("form_modifica"):
+                with st.form(f"form_modifica_{cid_da_mod}"):
                     data_svolto_raw = dati_da_mod.get('data_svolto')
                     val_data = datetime.strptime(data_svolto_raw, "%Y-%m-%d") if data_svolto_raw else datetime.today()
                     new_data_s = st.date_input("Data Svolgimento", value=val_data, format="DD/MM/YYYY")
