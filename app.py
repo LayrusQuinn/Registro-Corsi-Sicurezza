@@ -63,7 +63,7 @@ def invia_email(nominativo, corso, data_scadenza):
     mittente = config.get('email_mittente', '')
     password = config.get('password_mittente', '')
     destinatari_dict = get_data('/destinatari')
-    destinatari = [v['email'] for v in destinatar_dict.values()] if destinatar_dict else []
+    destinatari = [v['email'] for v in destinatari_dict.values()] if destinatari_dict else []
 
     if not destinatari or not password: return "Errore Config"
 
@@ -109,6 +109,7 @@ def conferma_eliminazione(cid):
     col_si, col_no = st.columns(2)
     if col_si.button("Sì, elimina"):
         delete_data('/corsi', cid)
+        if 'corsi_cache' in st.session_state: del st.session_state.corsi_cache
         st.rerun()
     if col_no.button("Annulla"):
         st.rerun()
@@ -151,13 +152,13 @@ with st.sidebar:
         oggi = datetime.today().date()
         soglia = oggi + timedelta(days=30)
         for cid, dati in corsi.items():
-            if 'data_scadenza' in dati:
-                try:
-                    d_scad = datetime.strptime(dati['data_scadenza'], "%Y-%m-%d").date()
-                    if d_scad <= soglia and not dati.get('notifica_inviata', False):
-                        if "Inviato" in invia_email(dati.get('nominativo'), dati.get('corso'), dati.get('data_scadenza')):
-                            db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True})
-                except: continue
+            try:
+                d_scad = datetime.strptime(dati.get('data_scadenza', '2000-01-01'), "%Y-%m-%d").date()
+                if d_scad <= soglia and not dati.get('notifica_inviata', False):
+                    if "Inviato" in invia_email(dati.get('nominativo'), dati.get('corso'), dati.get('data_scadenza')):
+                        db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True})
+            except: continue
+        if 'corsi_cache' in st.session_state: del st.session_state.corsi_cache
         st.rerun()
 
 # --- MAIN ---
@@ -178,17 +179,23 @@ with tab2:
         if st.form_submit_button("💾 Salva Corso"):
             scadenza = data_s.replace(year=data_s.year + val)
             push_data('/corsi', {"nominativo": st.session_state.nom_dipendente, "corso": corso_add, "data_svolto": str(data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
+            if 'corsi_cache' in st.session_state: del st.session_state.corsi_cache
             st.session_state.form_key += 1
             st.rerun()
 
 with tab1:
-    # --- GESTORE RESET PENDING (ANTI-DOPPIO CLICK) ---
+    # --- GESTORE RESET (CACHE LOCALE) ---
     if 'pending_reset' in st.session_state:
         cid_to_reset = st.session_state.pending_reset
-        del st.session_state.pending_reset
         db.reference(f'/corsi/{cid_to_reset}', url=DB_URL).update({'notifica_inviata': False})
-        time.sleep(0.5) 
+        if 'corsi_cache' in st.session_state:
+            st.session_state.corsi_cache[cid_to_reset]['notifica_inviata'] = False
+        del st.session_state.pending_reset
         st.rerun()
+
+    if 'corsi_cache' not in st.session_state:
+        st.session_state.corsi_cache = get_data('/corsi')
+    corsi = st.session_state.corsi_cache
 
     st.subheader("Filtri")
     c1, c2 = st.columns(2)
@@ -196,14 +203,13 @@ with tab1:
     filtro_stato = c2.selectbox("Filtra per stato", ["Tutti", "🟢 IN CORSO", "⚠️ IN SCADENZA", "🔴 SCADUTO", "✅ Mail inviata"])
 
     with st.expander("✏️ Modifica o 🗑️ Elimina Corso"):
-        corsi_tutti = get_data('/corsi')
-        if corsi_tutti:
-            lista_corsi = ["Seleziona un corso..."] + [f"{d.get('nominativo')} - {d.get('corso')}" for cid, d in corsi_tutti.items()]
-            mappa_opzioni = {f"{d.get('nominativo')} - {d.get('corso')}": cid for cid, d in corsi_tutti.items()}
+        if corsi:
+            lista_corsi = ["Seleziona un corso..."] + [f"{d.get('nominativo')} - {d.get('corso')}" for cid, d in corsi.items()]
+            mappa_opzioni = {f"{d.get('nominativo')} - {d.get('corso')}": cid for cid, d in corsi.items()}
             selezione = st.selectbox("Seleziona:", lista_corsi, key="sel_mod")
             if selezione != "Seleziona un corso...":
                 cid_da_mod = mappa_opzioni[selezione]
-                dati_da_mod = corsi_tutti[cid_da_mod]
+                dati_da_mod = corsi[cid_da_mod]
                 new_nom = st.text_input("Dipendente", value=dati_da_mod.get('nominativo', ''), key=f"mod_nom_{cid_da_mod}")
                 new_scelta = st.selectbox("Corso", opzioni_corsi, index=opzioni_corsi.index(dati_da_mod.get('corso')) if dati_da_mod.get('corso') in opzioni_corsi else 9, key=f"mod_sel_{cid_da_mod}")
                 new_corso = st.text_input("Specifica nome corso", value=dati_da_mod.get('corso', ''), key=f"mod_altro_{cid_da_mod}") if new_scelta == "Altro" else new_scelta
@@ -214,13 +220,14 @@ with tab1:
                     col_mod, col_del = st.columns(2)
                     if col_mod.form_submit_button("Salva Modifiche"):
                         db.reference(f'/corsi/{cid_da_mod}', url=DB_URL).update({"nominativo": new_nom, "corso": new_corso, "data_svolto": str(new_data_s), "data_scadenza": str(new_data_s.replace(year=new_data_s.year + new_val)), "notifica_inviata": False})
+                        if 'corsi_cache' in st.session_state: del st.session_state.corsi_cache
                         st.rerun()
                     if col_del.form_submit_button("Elimina Definitivamente", type="primary"):
                         delete_data('/corsi', cid_da_mod)
+                        if 'corsi_cache' in st.session_state: del st.session_state.corsi_cache
                         st.rerun()
 
     st.divider()
-    corsi = get_data('/corsi')
     oggi = datetime.today().date()
     soglia = oggi + timedelta(days=30)
     
