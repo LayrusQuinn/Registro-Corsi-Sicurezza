@@ -29,7 +29,7 @@ if not st.session_state.authenticated:
                 st.rerun()
             else:
                 st.error("Username o Password errati")
-    st.stop()
+    st.stop()  # Blocca l'esecuzione finché non è autenticato
 
 # --- 3. CONNESSIONE A FIREBASE ---
 DB_URL = "https://corsi-sicurezza-ggi-default-rtdb.europe-west1.firebasedatabase.app/"
