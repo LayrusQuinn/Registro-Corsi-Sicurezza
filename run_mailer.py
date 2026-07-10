@@ -26,7 +26,6 @@ def initialize_firebase():
 
 def invia_email():
     print("Inizio scansione database...")
-    # Puntiamo alla radice per leggere i nodi numerati 0, 1, ...
     ref = db.reference('/')
     dati = ref.get()
     
@@ -34,11 +33,17 @@ def invia_email():
         print("Database vuoto.")
         return
 
-    # Filtriamo per assicurarci di leggere solo i dizionari dei corsi
-    corsi = {k: v for k, v in dati.items() if isinstance(v, dict)}
+    # Gestione flessibile: trasforma lista o dizionario in un dizionario di corsi
+    if isinstance(dati, list):
+        corsi = {str(i): val for i, val in enumerate(dati) if isinstance(val, dict)}
+    elif isinstance(dati, dict):
+        corsi = {k: v for k, v in dati.items() if isinstance(v, dict)}
+    else:
+        print("Formato dati non riconosciuto.")
+        return
     
     if not corsi:
-        print("Nessun corso trovato nel database.")
+        print("Nessun corso valido trovato nel database.")
         return
 
     oggi = datetime.now()
