@@ -1,6 +1,8 @@
 name: Invio Email Automatico
 
 on:
+  schedule:
+    - cron: '0 8 * * *'
   workflow_dispatch:
 
 jobs:
@@ -8,18 +10,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          
       - name: Install dependencies
         run: pip install firebase-admin
-        
-      - name: Run Test
+      - name: Run Mailer
         env:
-          # Usiamo il segreto di prova che deve contenere solo "1234567890"
-          TEST_VALORE: ${{ secrets.TEST_SECRET }}
-        run: |
-          python -c "import os; print(f'DEBUG: Lunghezza TEST_VALORE: {len(str(os.environ.get(\"TEST_VALORE\")))}'); print(f'DEBUG: Valore ricevuto: {os.environ.get(\"TEST_VALORE\")}')"
+          FIREBASE_JSON: ${{ secrets.FIREBASE_JSON }}
+        run: python run_mailer.py
