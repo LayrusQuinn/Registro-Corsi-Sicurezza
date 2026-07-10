@@ -202,30 +202,34 @@ with tab1:
     with st.expander("✏️ Modifica o 🗑️ Elimina Corso"):
         corsi_tutti = get_data('/corsi')
         if corsi_tutti:
-            opzioni = {f"{d.get('nominativo')} - {d.get('corso')}": cid for cid, d in corsi_tutti.items()}
+            opzioni = { "Seleziona un corso...": None }
+            opzioni.update({f"{d.get('nominativo')} - {d.get('corso')}": cid for cid, d in corsi_tutti.items()})
+            
             selezione = st.selectbox("Seleziona:", list(opzioni.keys()), key="sel_mod")
-            cid_da_mod = opzioni[selezione]
-            dati_da_mod = corsi_tutti[cid_da_mod]
             
-            new_nom = st.text_input("Dipendente", value=dati_da_mod.get('nominativo', ''), key="mod_nom")
-            idx_def = opzioni_corsi.index(dati_da_mod.get('corso')) if dati_da_mod.get('corso') in opzioni_corsi else 9
-            new_scelta = st.selectbox("Corso", opzioni_corsi, index=idx_def, key="mod_sel")
-            new_corso = st.text_input("Specifica nome corso", value=dati_da_mod.get('corso', ''), key="mod_altro") if new_scelta == "Altro" else new_scelta
-            
-            with st.form("form_modifica"):
-                data_svolto_raw = dati_da_mod.get('data_svolto')
-                val_data = datetime.strptime(data_svolto_raw, "%Y-%m-%d") if data_svolto_raw else datetime.today()
-                new_data_s = st.date_input("Data Svolgimento", value=val_data, format="DD/MM/YYYY")
-                new_val = st.selectbox("Anni Validità", [1, 2, 3, 5, 10], index=3)
+            if opzioni[selezione] is not None:
+                cid_da_mod = opzioni[selezione]
+                dati_da_mod = corsi_tutti[cid_da_mod]
                 
-                col_mod, col_del = st.columns(2)
-                if col_mod.form_submit_button("Salva Modifiche"):
-                    scadenza = new_data_s.replace(year=new_data_s.year + new_val)
-                    db.reference(f'/corsi/{cid_da_mod}', url=DB_URL).update({"nominativo": new_nom, "corso": new_corso, "data_svolto": str(new_data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
-                    st.rerun()
-                if col_del.form_submit_button("Elimina Definitivamente", type="primary"):
-                    delete_data('/corsi', cid_da_mod)
-                    st.rerun()
+                new_nom = st.text_input("Dipendente", value=dati_da_mod.get('nominativo', ''), key="mod_nom")
+                idx_def = opzioni_corsi.index(dati_da_mod.get('corso')) if dati_da_mod.get('corso') in opzioni_corsi else 9
+                new_scelta = st.selectbox("Corso", opzioni_corsi, index=idx_def, key="mod_sel")
+                new_corso = st.text_input("Specifica nome corso", value=dati_da_mod.get('corso', ''), key="mod_altro") if new_scelta == "Altro" else new_scelta
+                
+                with st.form("form_modifica"):
+                    data_svolto_raw = dati_da_mod.get('data_svolto')
+                    val_data = datetime.strptime(data_svolto_raw, "%Y-%m-%d") if data_svolto_raw else datetime.today()
+                    new_data_s = st.date_input("Data Svolgimento", value=val_data, format="DD/MM/YYYY")
+                    new_val = st.selectbox("Anni Validità", [1, 2, 3, 5, 10], index=3)
+                    
+                    col_mod, col_del = st.columns(2)
+                    if col_mod.form_submit_button("Salva Modifiche"):
+                        scadenza = new_data_s.replace(year=new_data_s.year + new_val)
+                        db.reference(f'/corsi/{cid_da_mod}', url=DB_URL).update({"nominativo": new_nom, "corso": new_corso, "data_svolto": str(new_data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
+                        st.rerun()
+                    if col_del.form_submit_button("Elimina Definitivamente", type="primary"):
+                        delete_data('/corsi', cid_da_mod)
+                        st.rerun()
 
     st.divider()
     corsi = get_data('/corsi')
