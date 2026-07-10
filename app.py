@@ -114,9 +114,12 @@ def invia_email(nominativo, corso, data_scadenza):
 @st.dialog("Conferma eliminazione")
 def conferma_eliminazione(cid):
     st.write("Vuoi davvero eliminare questo corso?")
-    if st.button("Sì, elimina"):
+    col_si, col_no = st.columns(2)
+    if col_si.button("Sì, elimina"):
         delete_data('/corsi', cid)
         if 'corsi_cache' in st.session_state: del st.session_state.corsi_cache
+        st.rerun()
+    if col_no.button("Annulla"):
         st.rerun()
 
 # --- 8. INTERFACCIA UTENTE ---
@@ -179,15 +182,21 @@ tab1, tab2 = st.tabs(["📋 Registro Corsi", "➕ Aggiungi Corso"])
 opzioni_corsi = ["Preposto", "RLS", "Primo Soccorso", "Antincendio", "PLE", "Muletto", "Base 4H", "Specifica 12H", "DP13 Lavori in quota", "Altro"]
 
 with tab2:
-    nom_input = st.text_input("Dipendente")
-    with st.form("form_corso_new"):
+    if 'nom_dipendente' not in st.session_state: st.session_state.nom_dipendente = ""
+    if 'form_key' not in st.session_state: st.session_state.form_key = 0
+    nom_input = st.text_input("Dipendente", value=st.session_state.nom_dipendente)
+    st.session_state.nom_dipendente = nom_input
+
+    with st.form(f"form_corso_{st.session_state.form_key}"):
         scelta_add = st.selectbox("Corso", opzioni_corsi)
         corso_add = st.text_input("Specifica nome corso") if scelta_add == "Altro" else scelta_add
         data_s = st.date_input("Data Svolgimento", format="DD/MM/YYYY")
         val = st.selectbox("Anni Validità", [1, 2, 3, 5, 10], index=3)
         if st.form_submit_button("💾 Salva Corso"):
             scadenza = data_s.replace(year=data_s.year + val)
-            push_data('/corsi', {"nominativo": nom_input, "corso": corso_add, "data_svolto": str(data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
+            push_data('/corsi', {"nominativo": st.session_state.nom_dipendente, "corso": corso_add, "data_svolto": str(data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
+            if 'corsi_cache' in st.session_state: del st.session_state.corsi_cache
+            st.session_state.form_key += 1
             st.rerun()
 
 with tab1:
@@ -199,18 +208,21 @@ with tab1:
     
     with st.expander("✏️ Modifica o 🗑️ Elimina Corso"):
         if corsi:
-            lista = ["Seleziona..."] + [f"{d.get('nominativo')} - {d.get('corso')}" for cid, d in corsi.items()]
-            sel = st.selectbox("Seleziona:", lista)
-            if sel != "Seleziona...":
-                mappa = {f"{d.get('nominativo')} - {d.get('corso')}": cid for cid, d in corsi.items()}
-                cid_m = mappa[sel]
-                dati = corsi[cid_m]
-                new_nom = st.text_input("Nome", value=dati.get('nominativo'))
-                new_c = st.text_input("Corso", value=dati.get('corso'))
-                if st.button("Salva Modifiche"):
-                    db.reference(f'/corsi/{cid_m}', url=DB_URL).update({"nominativo": new_nom, "corso": new_c})
-                    st.rerun()
+            lista_corsi = ["Seleziona un corso..."] + [f"{d.get('nominativo')} - {d.get('corso')}" for cid, d in corsi.items()]
+            mappa_opzioni = {f"{d.get('nominativo')} - {d.get('corso')}": cid for cid, d in corsi.items()}
+            selezione = st.selectbox("Seleziona:", lista_corsi)
+            if selezione != "Seleziona un corso...":
+                cid_da_mod = mappa_opzioni[selezione]
+                dati_da_mod = corsi[cid_da_mod]
+                new_nom = st.text_input("Dipendente", value=dati_da_mod.get('nominativo', ''))
+                new_corso = st.text_input("Corso", value=dati_da_mod.get('corso', ''))
+                with st.form(f"form_modifica_{cid_da_mod}"):
+                    if st.form_submit_button("Salva Modifiche"):
+                        db.reference(f'/corsi/{cid_da_mod}', url=DB_URL).update({"nominativo": new_nom, "corso": new_corso})
+                        if 'corsi_cache' in st.session_state: del st.session_state.corsi_cache
+                        st.rerun()
 
+    st.divider()
     oggi = datetime.today().date()
     soglia = oggi + timedelta(days=30)
     for cid, d in corsi.items():
@@ -224,10 +236,10 @@ with tab1:
             if (search.lower() in d.get('nominativo', '').lower()) and (filtro_stato == "Tutti" or filtro_stato == stato):
                 with st.container(border=True):
                     cols = st.columns([2, 2, 1, 1, 1, 0.5])
-                    cols[0].write(d.get('nominativo'))
-                    cols[1].write(d.get('corso'))
-                    cols[2].write(d.get('data_svolto'))
-                    cols[3].write(d.get('data_scadenza'))
+                    cols[0].markdown(f":{colore}[{d.get('nominativo')}]")
+                    cols[1].markdown(f":{colore}[{d.get('corso')}]")
+                    cols[2].markdown(f":{colore}[{d.get('data_svolto')}]")
+                    cols[3].markdown(f":{colore}[{d.get('data_scadenza')}]")
                     cols[4].markdown(f":{colore}[**{stato}**]")
                     if cols[5].button("🗑️", key=f"del_{cid}"): conferma_eliminazione(cid)
         except: continue
