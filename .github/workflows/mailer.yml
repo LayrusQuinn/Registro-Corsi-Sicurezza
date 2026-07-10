@@ -1,0 +1,21 @@
+name: Invio Email Automatico
+on:
+  schedule:
+    - cron: '0 8 * * *' # Esegue ogni giorno alle 08:00
+  workflow_dispatch: # Permette di testarlo manualmente
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install dependencies
+        run: pip install firebase-admin
+      - name: Run Mailer
+        env:
+          FIREBASE_JSON: ${{ secrets.FIREBASE_JSON }}
+        run: python run_mailer.py
