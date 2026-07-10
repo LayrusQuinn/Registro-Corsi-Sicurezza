@@ -42,7 +42,7 @@ if not firebase_admin._apps:
         st.error(f"Errore connessione DB: {e}")
 
 # --- 4. FUNZIONI DI DATABASE ---
-@st.cache_data(ttl=60)
+# RIMOSSO: @st.cache_data(ttl=60) - Leggiamo sempre direttamente dal server
 def get_data(path):
     try:
         dati = db.reference(path, url=DB_URL).get()
@@ -60,8 +60,7 @@ def delete_data(path, item_id):
 
 def reset_notifica(item_id):
     db.reference(f'/corsi/{item_id}', url=DB_URL).update({'notifica_inviata': False})
-    time.sleep(0.5) # Attesa per propagazione Firebase
-    st.cache_data.clear()
+    # Non serve più time.sleep se non usiamo la cache
 
 # --- 5. LOGICA EMAIL PROFESSIONALE ---
 def invia_email(nominativo, corso, data_scadenza):
@@ -115,7 +114,6 @@ def conferma_eliminazione(cid):
     col_si, col_no = st.columns(2)
     if col_si.button("Sì, elimina"):
         delete_data('/corsi', cid)
-        st.cache_data.clear()
         st.rerun()
     if col_no.button("Annulla"):
         st.rerun()
@@ -136,7 +134,6 @@ with st.sidebar:
             if st.form_submit_button("Salva Credenziali"):
                 set_data('/config/email_mittente', email_mit)
                 set_data('/config/password_mittente', pass_mit)
-                st.cache_data.clear()
                 st.rerun()
     
     with st.expander("👥 Destinatari"):
@@ -146,13 +143,11 @@ with st.sidebar:
             col1.write(d_dati.get('email', ''))
             if col2.button("🗑️", key=f"del_{d_id}"):
                 delete_data('/destinatari', d_id)
-                st.cache_data.clear()
                 st.rerun()
         nuova_email = st.text_input("Aggiungi email:")
         if st.button("Aggiungi"):
             if "@" in nuova_email:
                 push_data('/destinatari', {"email": nuova_email})
-                st.cache_data.clear()
                 st.rerun()
     
     st.divider()
@@ -170,7 +165,6 @@ with st.sidebar:
                             db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True})
                             inviati += 1
                 except: continue
-        st.cache_data.clear()
         st.rerun()
 
 # --- MAIN ---
@@ -193,10 +187,8 @@ with tab2:
         if st.form_submit_button("💾 Salva Corso"):
             scadenza = data_s.replace(year=data_s.year + val)
             push_data('/corsi', {"nominativo": st.session_state.nom_dipendente, "corso": corso_add, "data_svolto": str(data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
-            
             st.session_state.last_message = "Corso aggiunto correttamente!"
             st.session_state.form_key += 1
-            st.cache_data.clear()
             st.rerun()
 
     if 'last_message' in st.session_state:
@@ -214,40 +206,31 @@ with tab1:
         if corsi_tutti:
             lista_corsi = ["Seleziona un corso..."] + [f"{d.get('nominativo')} - {d.get('corso')}" for cid, d in corsi_tutti.items()]
             mappa_opzioni = {f"{d.get('nominativo')} - {d.get('corso')}": cid for cid, d in corsi_tutti.items()}
-            
             selezione = st.selectbox("Seleziona:", lista_corsi, key="sel_mod")
-            
             if selezione != "Seleziona un corso...":
                 cid_da_mod = mappa_opzioni[selezione]
                 dati_da_mod = corsi_tutti[cid_da_mod]
-                
                 new_nom = st.text_input("Dipendente", value=dati_da_mod.get('nominativo', ''), key=f"mod_nom_{cid_da_mod}")
                 idx_def = opzioni_corsi.index(dati_da_mod.get('corso')) if dati_da_mod.get('corso') in opzioni_corsi else 9
                 new_scelta = st.selectbox("Corso", opzioni_corsi, index=idx_def, key=f"mod_sel_{cid_da_mod}")
                 new_corso = st.text_input("Specifica nome corso", value=dati_da_mod.get('corso', ''), key=f"mod_altro_{cid_da_mod}") if new_scelta == "Altro" else new_scelta
-                
                 with st.form(f"form_modifica_{cid_da_mod}"):
                     data_svolto_raw = dati_da_mod.get('data_svolto')
                     val_data = datetime.strptime(data_svolto_raw, "%Y-%m-%d") if data_svolto_raw else datetime.today()
                     new_data_s = st.date_input("Data Svolgimento", value=val_data, format="DD/MM/YYYY")
-                    
                     anni_opzioni = [1, 2, 3, 5, 10]
                     d_scad_raw = datetime.strptime(dati_da_mod.get('data_scadenza'), "%Y-%m-%d")
                     d_svol_raw = datetime.strptime(dati_da_mod.get('data_svolto'), "%Y-%m-%d")
                     anni_salvati = d_scad_raw.year - d_svol_raw.year
                     idx_anni = anni_opzioni.index(anni_salvati) if anni_salvati in anni_opzioni else 3
-                    
                     new_val = st.selectbox("Anni Validità", anni_opzioni, index=idx_anni, key=f"mod_anni_{cid_da_mod}")
-                    
                     col_mod, col_del = st.columns(2)
                     if col_mod.form_submit_button("Salva Modifiche"):
                         scadenza = new_data_s.replace(year=new_data_s.year + new_val)
                         db.reference(f'/corsi/{cid_da_mod}', url=DB_URL).update({"nominativo": new_nom, "corso": new_corso, "data_svolto": str(new_data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
-                        st.cache_data.clear()
                         st.rerun()
                     if col_del.form_submit_button("Elimina Definitivamente", type="primary"):
                         delete_data('/corsi', cid_da_mod)
-                        st.cache_data.clear()
                         st.rerun()
 
     st.divider()
@@ -264,28 +247,27 @@ with tab1:
     cols_header[5].write("**Elimina**")
     cols_header[6].write("**Reset**")
 
-    for cid, d in corsi.items():
-        try:
-            d_svolto = datetime.strptime(d['data_svolto'], "%Y-%m-%d").date()
-            d_scad = datetime.strptime(d['data_scadenza'], "%Y-%m-%d").date()
-            if d.get('notifica_inviata', False): stato = "✅ Mail inviata"
-            elif d_scad < oggi: stato = "🔴 SCADUTO"
-            elif d_scad <= soglia: stato = "⚠️ IN SCADENZA"
-            else: stato = "🟢 IN CORSO"
-            
-            if (search.lower() in d.get('nominativo', '').lower() or search.lower() in d.get('corso', '').lower()):
-                if filtro_stato == "Tutti" or filtro_stato == stato:
-                    cols = st.columns([2, 2, 1.5, 1.5, 1, 1, 1])
-                    cols[0].write(d.get('nominativo', ''))
-                    cols[1].write(d.get('corso', ''))
-                    cols[2].write(d_svolto.strftime("%d/%m/%Y"))
-                    cols[3].write(d_scad.strftime("%d/%m/%Y"))
-                    cols[4].write(stato)
-                    
-                    if cols[5].button("🗑️", key=f"del_{cid}"):
-                        conferma_eliminazione(cid)
-                    
-                    if cols[6].button("🔄", key=f"res_{cid}"):
-                        reset_notifica(cid)
-                        st.rerun()
-        except: continue
+    if corsi:
+        for cid, d in corsi.items():
+            try:
+                d_svolto = datetime.strptime(d['data_svolto'], "%Y-%m-%d").date()
+                d_scad = datetime.strptime(d['data_scadenza'], "%Y-%m-%d").date()
+                if d.get('notifica_inviata', False): stato = "✅ Mail inviata"
+                elif d_scad < oggi: stato = "🔴 SCADUTO"
+                elif d_scad <= soglia: stato = "⚠️ IN SCADENZA"
+                else: stato = "🟢 IN CORSO"
+                
+                if (search.lower() in d.get('nominativo', '').lower() or search.lower() in d.get('corso', '').lower()):
+                    if filtro_stato == "Tutti" or filtro_stato == stato:
+                        cols = st.columns([2, 2, 1.5, 1.5, 1, 1, 1])
+                        cols[0].write(d.get('nominativo', ''))
+                        cols[1].write(d.get('corso', ''))
+                        cols[2].write(d_svolto.strftime("%d/%m/%Y"))
+                        cols[3].write(d_scad.strftime("%d/%m/%Y"))
+                        cols[4].write(stato)
+                        if cols[5].button("🗑️", key=f"del_{cid}"):
+                            conferma_eliminazione(cid)
+                        if cols[6].button("🔄", key=f"res_{cid}"):
+                            reset_notifica(cid)
+                            st.rerun()
+            except: continue
