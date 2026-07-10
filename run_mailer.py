@@ -8,54 +8,73 @@ import firebase_admin
 from firebase_admin import credentials, db
 
 def initialize_firebase():
+    """Inizializzazione sicura di Firebase"""
     raw_json = os.environ.get('FIREBASE_JSON_CONTENT')
     if not raw_json:
+        print("ERRORE CRITICO: FIREBASE_JSON_CONTENT non trovato.")
         sys.exit(1)
-    cred_dict = json.loads(raw_json)
-    cred = credentials.Certificate(cred_dict)
-    firebase_admin.initialize_app(cred, {
-        'databaseURL': "https://corsi-sicurezza-ggi-default-rtdb.europe-west1.firebasedatabase.app/"
-    })
+    
+    try:
+        cred_dict = json.loads(raw_json)
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred, {
+            'databaseURL': "https://corsi-sicurezza-ggi-default-rtdb.europe-west1.firebasedatabase.app/"
+        })
+    except Exception as e:
+        print(f"ERRORE durante inizializzazione Firebase: {e}")
+        sys.exit(1)
 
 def invia_email_a_tutti(nominativo, corso, data_scadenza):
-    # Legge la lista destinatari dal database
+    """Invia notifica a tutti gli indirizzi salvati in /destinatari"""
     ref_dest = db.reference('/destinatari')
     dest_data = ref_dest.get()
-    if not dest_data: return
+    
+    if not dest_data:
+        print("Nessun destinatario trovato nel database.")
+        return
     
     destinatari = [v['email'] for v in dest_data.values()]
-    
     gmail_user = os.environ.get('GMAIL_USER')
     gmail_pass = os.environ.get('GMAIL_PASS')
     
-    data_ita = datetime.strptime(data_scadenza, '%Y-%m-%d').strftime('%d/%m/%Y')
+    # Formattazione data europea
+    d_scad_obj = datetime.strptime(data_scadenza, '%Y-%m-%d')
+    data_ita = d_scad_obj.strftime('%d/%m/%Y')
     
     msg = EmailMessage()
-    msg['Subject'] = f"⚠️ Notifica Scadenza: {corso} - {nominativo}"
+    msg['Subject'] = f"⚠️ Notifica Scadenza Formazione: {corso} - {nominativo}"
     msg['From'] = gmail_user
-    msg['To'] = ", ".join(destinatari) # Invia a tutti
-    msg.set_content(f"Attenzione, il corso '{corso}' per {nominativo} scade il {data_ita}. Provvedere al rinnovo.")
+    msg['To'] = ", ".join(destinatari)
+    msg.set_content(f"Buongiorno,\n\nSi comunica che il corso '{corso}' per il dipendente {nominativo} scade il {data_ita}.\nSi prega di provvedere alle necessarie attività di rinnovo.\n\nCordiali saluti.")
     
     with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
         smtp.login(gmail_user, gmail_pass)
         smtp.send_message(msg)
+    print(f"Email inviata con successo a: {', '.join(destinatari)}")
 
 def invia_email():
-    ref = db.reference('/')
-    dati = ref.get()
-    if not dati: return
-
-    # Logica per gestire lista o dizionario (come prima)
-    corsi = {str(i): val for i, val in enumerate(dati)} if isinstance(dati, list) else dati
+    print("Inizio scansione database...")
+    # Punta specificamente a /corsi come fa l'app Streamlit
+    ref = db.reference('/corsi')
+    corsi = ref.get()
     
+    if not corsi:
+        print("Nessun corso trovato sotto /corsi.")
+        return
+
     oggi = datetime.today()
     soglia = oggi + timedelta(days=30)
 
     for cid, info in corsi.items():
-        if isinstance(info, dict) and 'data_scadenza' in info and not info.get('notifica_inviata', False):
+        if isinstance(info, dict) and 'data_scadenza' in info:
             d_scad = datetime.strptime(info['data_scadenza'], '%Y-%m-%d')
-            if oggi <= d_scad <= soglia:
+            
+            # Controllo se è in scadenza e se non è già stata inviata la notifica
+            if oggi <= d_scad <= soglia and not info.get('notifica_inviata', False):
+                print(f"Invio avviso per: {info['corso']} (Scadenza: {info['data_scadenza']})")
                 invia_email_a_tutti(info['nominativo'], info['corso'], info['data_scadenza'])
+                
+                # Aggiorna lo stato nel database
                 db.reference(f'/corsi/{cid}').update({'notifica_inviata': True})
 
 if __name__ == "__main__":
