@@ -138,21 +138,16 @@ tab1, tab2 = st.tabs(["📋 Registro Corsi", "➕ Aggiungi Corso"])
 opzioni_corsi = ["Preposto", "RLS", "Primo Soccorso", "Antincendio", "PLE", "Muletto", "Base 4H", "Specifica 12H", "DP13 Lavori in quota", "Altro"]
 
 with tab2:
+    nom_add = st.text_input("Dipendente", key="add_nom")
+    scelta_add = st.selectbox("Corso", opzioni_corsi, key="add_sel")
+    corso_add = st.text_input("Specifica nome corso", key="add_altro") if scelta_add == "Altro" else scelta_add
+    
     with st.form("form_corso", clear_on_submit=True):
-        nom = st.text_input("Dipendente")
-        scelta_add = st.selectbox("Corso", opzioni_corsi, key="add_sel")
-        
-        # Logica per input dinamico
-        if scelta_add == "Altro":
-            corso_add = st.text_input("Specifica nome corso")
-        else:
-            corso_add = scelta_add
-            
         data_s = st.date_input("Data Svolgimento", format="DD/MM/YYYY")
         val = st.selectbox("Anni Validità", [1, 2, 3, 5, 10], index=3)
         if st.form_submit_button("Salva Corso"):
             scadenza = data_s.replace(year=data_s.year + val)
-            push_data('/corsi', {"nominativo": nom, "corso": corso_add, "data_svolto": str(data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
+            push_data('/corsi', {"nominativo": nom_add, "corso": corso_add, "data_svolto": str(data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
             st.rerun()
 
 with tab1:
@@ -165,25 +160,19 @@ with tab1:
         corsi_tutti = get_data('/corsi')
         if corsi_tutti:
             opzioni = {f"{d.get('nominativo')} - {d.get('corso')}": cid for cid, d in corsi_tutti.items()}
-            selezione = st.selectbox("Seleziona:", list(opzioni.keys()))
+            selezione = st.selectbox("Seleziona:", list(opzioni.keys()), key="sel_mod")
             cid_da_mod = opzioni[selezione]
             dati_da_mod = corsi_tutti[cid_da_mod]
             
+            new_nom = st.text_input("Dipendente", value=dati_da_mod.get('nominativo', ''), key="mod_nom")
+            idx_def = opzioni_corsi.index(dati_da_mod.get('corso')) if dati_da_mod.get('corso') in opzioni_corsi else 9
+            new_scelta = st.selectbox("Corso", opzioni_corsi, index=idx_def, key="mod_sel")
+            new_corso = st.text_input("Specifica nome corso", value=dati_da_mod.get('corso', ''), key="mod_altro") if new_scelta == "Altro" else new_scelta
+            
             with st.form("form_modifica"):
-                new_nom = st.text_input("Dipendente", value=dati_da_mod.get('nominativo', ''))
-                
-                # Logica per mantenere lo stato corretto nella modifica
-                idx_default = opzioni_corsi.index(dati_da_mod.get('corso')) if dati_da_mod.get('corso') in opzioni_corsi else 9
-                new_scelta = st.selectbox("Corso", opzioni_corsi, index=idx_default, key="mod_sel")
-                
-                if new_scelta == "Altro":
-                    new_corso = st.text_input("Specifica nome corso", value=dati_da_mod.get('corso', ''))
-                else:
-                    new_corso = new_scelta
-                
                 data_svolto_raw = dati_da_mod.get('data_svolto')
-                valore_default_data = datetime.strptime(data_svolto_raw, "%Y-%m-%d") if data_svolto_raw else datetime.today()
-                new_data_s = st.date_input("Data Svolgimento", value=valore_default_data, format="DD/MM/YYYY")
+                val_data = datetime.strptime(data_svolto_raw, "%Y-%m-%d") if data_svolto_raw else datetime.today()
+                new_data_s = st.date_input("Data Svolgimento", value=val_data, format="DD/MM/YYYY")
                 new_val = st.selectbox("Anni Validità", [1, 2, 3, 5, 10], index=3)
                 
                 col_mod, col_del = st.columns(2)
@@ -212,7 +201,6 @@ with tab1:
         try:
             d_svolto = datetime.strptime(d['data_svolto'], "%Y-%m-%d").date()
             d_scad = datetime.strptime(d['data_scadenza'], "%Y-%m-%d").date()
-            
             if d.get('notifica_inviata', False): stato = "✅ Mail inviata"
             elif d_scad < oggi: stato = "🔴 SCADUTO"
             elif d_scad <= soglia: stato = "⚠️ IN SCADENZA"
