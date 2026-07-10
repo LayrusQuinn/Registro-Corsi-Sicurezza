@@ -8,7 +8,6 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
-import time
 
 # --- 1. CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="Sicurezza | Guasti Gino", layout="wide")
@@ -159,35 +158,17 @@ tab1, tab2 = st.tabs(["📋 Registro Corsi", "➕ Aggiungi Corso"])
 opzioni_corsi = ["Preposto", "RLS", "Primo Soccorso", "Antincendio", "PLE", "Muletto", "Base 4H", "Specifica 12H", "DP13 Lavori in quota", "Altro"]
 
 with tab2:
-    if 'nom_value' not in st.session_state: st.session_state.nom_value = ""
-    if 'form_key' not in st.session_state: st.session_state.form_key = 0
-    
-    st.text_input("Dipendente", value=st.session_state.nom_value, key="nom_input")
-    
-    with st.form(f"form_corso_{st.session_state.form_key}"):
-        scelta_add = st.selectbox("Corso", opzioni_corsi, key="add_sel")
-        corso_add = st.text_input("Specifica nome corso", key="add_altro") if scelta_add == "Altro" else scelta_add
+    with st.form("form_corso", clear_on_submit=True):
+        nom_add = st.text_input("Dipendente")
+        scelta_add = st.selectbox("Corso", opzioni_corsi)
+        corso_add = st.text_input("Specifica nome corso") if scelta_add == "Altro" else scelta_add
         data_s = st.date_input("Data Svolgimento", format="DD/MM/YYYY")
         val = st.selectbox("Anni Validità", [1, 2, 3, 5, 10], index=3)
         
-        col_c1, col_c2 = st.columns(2)
-        submit = col_c1.form_submit_button("💾 Salva Corso")
-        add_another = col_c2.form_submit_button("➕ Aggiungi altro corso")
-
-        if submit or add_another:
+        if st.form_submit_button("💾 Salva Corso"):
             scadenza = data_s.replace(year=data_s.year + val)
-            push_data('/corsi', {
-                "nominativo": st.session_state.nom_input, 
-                "corso": corso_add, 
-                "data_svolto": str(data_s), 
-                "data_scadenza": str(scadenza), 
-                "notifica_inviata": False
-            })
-            st.session_state.nom_value = st.session_state.nom_input if add_another else ""
-            st.session_state.form_key += 1
-            st.success(f"Corso '{corso_add}' aggiunto correttamente per {st.session_state.nom_input}!")
-            time.sleep(1)
-            st.rerun()
+            push_data('/corsi', {"nominativo": nom_add, "corso": corso_add, "data_svolto": str(data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
+            st.success("Corso aggiunto correttamente!")
 
 with tab1:
     st.subheader("Filtri")
@@ -195,46 +176,19 @@ with tab1:
     search = c1.text_input("🔍 Cerca dipendente o corso")
     filtro_stato = c2.selectbox("Filtra per stato", ["Tutti", "🟢 IN CORSO", "⚠️ IN SCADENZA", "🔴 SCADUTO", "✅ Mail inviata"])
 
-    with st.expander("✏️ Modifica o 🗑️ Elimina Corso"):
-        corsi_tutti = get_data('/corsi')
-        if corsi_tutti:
-            opzioni = {f"{d.get('nominativo')} - {d.get('corso')}": cid for cid, d in corsi_tutti.items()}
-            selezione = st.selectbox("Seleziona:", list(opzioni.keys()), key="sel_mod")
-            cid_da_mod = opzioni[selezione]
-            dati_da_mod = corsi_tutti[cid_da_mod]
-            
-            new_nom = st.text_input("Dipendente", value=dati_da_mod.get('nominativo', ''), key="mod_nom")
-            idx_def = opzioni_corsi.index(dati_da_mod.get('corso')) if dati_da_mod.get('corso') in opzioni_corsi else 9
-            new_scelta = st.selectbox("Corso", opzioni_corsi, index=idx_def, key="mod_sel")
-            new_corso = st.text_input("Specifica nome corso", value=dati_da_mod.get('corso', ''), key="mod_altro") if new_scelta == "Altro" else new_scelta
-            
-            with st.form("form_modifica"):
-                data_svolto_raw = dati_da_mod.get('data_svolto')
-                val_data = datetime.strptime(data_svolto_raw, "%Y-%m-%d") if data_svolto_raw else datetime.today()
-                new_data_s = st.date_input("Data Svolgimento", value=val_data, format="DD/MM/YYYY")
-                new_val = st.selectbox("Anni Validità", [1, 2, 3, 5, 10], index=3)
-                
-                col_mod, col_del = st.columns(2)
-                if col_mod.form_submit_button("Salva Modifiche"):
-                    scadenza = new_data_s.replace(year=new_data_s.year + new_val)
-                    db.reference(f'/corsi/{cid_da_mod}', url=DB_URL).update({"nominativo": new_nom, "corso": new_corso, "data_svolto": str(new_data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
-                    st.rerun()
-                if col_del.form_submit_button("Elimina Definitivamente", type="primary"):
-                    delete_data('/corsi', cid_da_mod)
-                    st.rerun()
-
     st.divider()
     corsi = get_data('/corsi')
     oggi = datetime.today().date()
     soglia = oggi + timedelta(days=30)
     
-    cols_header = st.columns([2, 2, 1.5, 1.5, 1, 1])
+    cols_header = st.columns([2, 2, 1.5, 1.5, 1, 1, 1])
     cols_header[0].write("**Nominativo**")
     cols_header[1].write("**Corso**")
     cols_header[2].write("**Svolgimento**")
     cols_header[3].write("**Scadenza**")
     cols_header[4].write("**Stato**")
-    cols_header[5].write("**Reset**")
+    cols_header[5].write("**Elimina**")
+    cols_header[6].write("**Reset**")
 
     for cid, d in corsi.items():
         try:
@@ -247,13 +201,23 @@ with tab1:
             
             if (search.lower() in d.get('nominativo', '').lower() or search.lower() in d.get('corso', '').lower()):
                 if filtro_stato == "Tutti" or filtro_stato == stato:
-                    cols = st.columns([2, 2, 1.5, 1.5, 1, 1])
+                    cols = st.columns([2, 2, 1.5, 1.5, 1, 1, 1])
                     cols[0].write(d.get('nominativo', ''))
                     cols[1].write(d.get('corso', ''))
                     cols[2].write(d_svolto.strftime("%d/%m/%Y"))
                     cols[3].write(d_scad.strftime("%d/%m/%Y"))
                     cols[4].write(stato)
-                    if cols[5].button("🔄", key=f"res_{cid}"):
+                    
+                    # Bottone Elimina con Pop-up conferma
+                    with cols[5].popover("🗑️"):
+                        st.write("Vuoi davvero eliminare il corso?")
+                        if st.button("Sì, elimina", key=f"del_{cid}"):
+                            delete_data('/corsi', cid)
+                            st.rerun()
+                        st.button("No", key=f"no_{cid}")
+                    
+                    # Bottone Reset
+                    if cols[6].button("🔄", key=f"res_{cid}"):
                         reset_notifica(cid)
                         st.rerun()
         except: continue
