@@ -141,7 +141,10 @@ with tab2:
     with st.form("form_corso", clear_on_submit=True):
         nom = st.text_input("Dipendente")
         scelta_corso = st.selectbox("Corso", opzioni_corsi)
-        corso = st.text_input("Specifica nome corso (se hai scelto Altro)", value="" if scelta_corso == "Altro" else scelta_corso)
+        if scelta_corso == "Altro":
+            corso = st.text_input("Specifica nome corso")
+        else:
+            corso = scelta_corso
         data_s = st.date_input("Data Svolgimento", format="DD/MM/YYYY")
         val = st.selectbox("Anni Validità", [1, 2, 3, 5, 10], index=3)
         if st.form_submit_button("Salva Corso"):
@@ -168,7 +171,10 @@ with tab1:
                 
                 sel_idx = opzioni_corsi.index(dati_da_mod.get('corso', 'Altro')) if dati_da_mod.get('corso') in opzioni_corsi else 9
                 new_scelta = st.selectbox("Corso", opzioni_corsi, index=sel_idx)
-                new_corso = st.text_input("Specifica nome corso", value=dati_da_mod.get('corso', ''))
+                if new_scelta == "Altro":
+                    new_corso = st.text_input("Specifica nome corso", value=dati_da_mod.get('corso', ''))
+                else:
+                    new_corso = new_scelta
                 
                 data_svolto_raw = dati_da_mod.get('data_svolto')
                 valore_default_data = datetime.strptime(data_svolto_raw, "%Y-%m-%d") if data_svolto_raw else datetime.today()
@@ -177,9 +183,8 @@ with tab1:
                 
                 col_mod, col_del = st.columns(2)
                 if col_mod.form_submit_button("Salva Modifiche"):
-                    corso_finale = new_corso if new_scelta == "Altro" else new_scelta
                     scadenza = new_data_s.replace(year=new_data_s.year + new_val)
-                    db.reference(f'/corsi/{cid_da_mod}', url=DB_URL).update({"nominativo": new_nom, "corso": corso_finale, "data_svolto": str(new_data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
+                    db.reference(f'/corsi/{cid_da_mod}', url=DB_URL).update({"nominativo": new_nom, "corso": new_corso, "data_svolto": str(new_data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
                     st.rerun()
                 if col_del.form_submit_button("Elimina Definitivamente", type="primary"):
                     delete_data('/corsi', cid_da_mod)
@@ -190,7 +195,6 @@ with tab1:
     oggi = datetime.today().date()
     soglia = oggi + timedelta(days=30)
     
-    # Intestazione aggiornata con Data Svolgimento
     cols_header = st.columns([2, 2, 1.5, 1.5, 1, 1])
     cols_header[0].write("**Nominativo**")
     cols_header[1].write("**Corso**")
