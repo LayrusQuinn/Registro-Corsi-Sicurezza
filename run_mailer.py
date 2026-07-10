@@ -8,81 +8,55 @@ import firebase_admin
 from firebase_admin import credentials, db
 
 def initialize_firebase():
-    """Inizializzazione sicura di Firebase"""
     raw_json = os.environ.get('FIREBASE_JSON_CONTENT')
     if not raw_json:
-        print("ERRORE CRITICO: FIREBASE_JSON_CONTENT non trovato.")
         sys.exit(1)
-    
-    try:
-        cred_dict = json.loads(raw_json)
-        cred = credentials.Certificate(cred_dict)
-        firebase_admin.initialize_app(cred, {
-            'databaseURL': "https://corsi-sicurezza-ggi-default-rtdb.europe-west1.firebasedatabase.app/"
-        })
-    except Exception as e:
-        print(f"ERRORE durante inizializzazione Firebase: {e}")
-        sys.exit(1)
+    cred_dict = json.loads(raw_json)
+    cred = credentials.Certificate(cred_dict)
+    firebase_admin.initialize_app(cred, {
+        'databaseURL': "https://corsi-sicurezza-ggi-default-rtdb.europe-west1.firebasedatabase.app/"
+    })
 
-def invia_email():
-    print("Inizio scansione database...")
-    ref = db.reference('/')
-    dati = ref.get()
+def invia_email_a_tutti(nominativo, corso, data_scadenza):
+    # Legge la lista destinatari dal database
+    ref_dest = db.reference('/destinatari')
+    dest_data = ref_dest.get()
+    if not dest_data: return
     
-    if not dati:
-        print("Database vuoto.")
-        return
-
-    # Gestione flessibile: trasforma lista o dizionario in un dizionario di corsi
-    if isinstance(dati, list):
-        corsi = {str(i): val for i, val in enumerate(dati) if isinstance(val, dict)}
-    elif isinstance(dati, dict):
-        corsi = {k: v for k, v in dati.items() if isinstance(v, dict)}
-    else:
-        print("Formato dati non riconosciuto.")
-        return
-    
-    if not corsi:
-        print("Nessun corso valido trovato nel database.")
-        return
-
-    oggi = datetime.now()
-    soglia = oggi + timedelta(days=30)
+    destinatari = [v['email'] for v in dest_data.values()]
     
     gmail_user = os.environ.get('GMAIL_USER')
     gmail_pass = os.environ.get('GMAIL_PASS')
+    
+    data_ita = datetime.strptime(data_scadenza, '%Y-%m-%d').strftime('%d/%m/%Y')
+    
+    msg = EmailMessage()
+    msg['Subject'] = f"⚠️ Notifica Scadenza: {corso} - {nominativo}"
+    msg['From'] = gmail_user
+    msg['To'] = ", ".join(destinatari) # Invia a tutti
+    msg.set_content(f"Attenzione, il corso '{corso}' per {nominativo} scade il {data_ita}. Provvedere al rinnovo.")
+    
+    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+        smtp.login(gmail_user, gmail_pass)
+        smtp.send_message(msg)
 
-    for corso_id, info in corsi.items():
-        # Verifica campi necessari
-        required_keys = ('data_scadenza', 'corso', 'email')
-        if not all(k in info for k in required_keys):
-            print(f"Record {corso_id} saltato: mancano dati necessari.")
-            continue
-            
-        # Parsing data YYYY-MM-DD
-        try:
-            data_scadenza = datetime.strptime(info['data_scadenza'], '%Y-%m-%d')
-        except ValueError:
-            print(f"Data non valida per {info['corso']}: {info['data_scadenza']}")
-            continue
-            
-        # Trigger: scadenza tra oggi e 30 giorni
-        if oggi <= data_scadenza <= soglia:
-            print(f"Invio avviso per: {info['corso']} (Scadenza: {info['data_scadenza']})")
-            
-            try:
-                msg = EmailMessage()
-                msg['Subject'] = f"Avviso scadenza corso: {info['corso']}"
-                msg['From'] = gmail_user
-                msg['To'] = info['email']
-                msg.set_content(f"Attenzione, il corso '{info['corso']}' scade il {info['data_scadenza']}. Provvedere al rinnovo.")
-                
-                with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
-                    smtp.login(gmail_user, gmail_pass)
-                    smtp.send_message(msg)
-                print(f"Email inviata con successo a {info['email']}")
-            except Exception as e:
-                print(f"ERRORE invio email per {info['corso']}: {e}")
+def invia_email():
+    ref = db.reference('/')
+    dati = ref.get()
+    if not dati: return
+
+    # Logica per gestire lista o dizionario (come prima)
+    corsi = {str(i): val for i, val in enumerate(dati)} if isinstance(dati, list) else dati
+    
+    oggi = datetime.today()
+    soglia = oggi + timedelta(days=30)
+
+    for cid, info in corsi.items():
+        if isinstance(info, dict) and 'data_scadenza' in info and not info.get('notifica_inviata', False):
+            d_scad = datetime.strptime(info['data_scadenza'], '%Y-%m-%d')
+            if oggi <= d_scad <= soglia:
+                invia_email_a_tutti(info['nominativo'], info['corso'], info['data_scadenza'])
+                db.reference(f'/corsi/{cid}').update({'notifica_inviata': True})
 
 if __name__ == "__main__":
     initialize_firebase()
