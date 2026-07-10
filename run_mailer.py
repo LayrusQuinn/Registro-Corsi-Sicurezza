@@ -1,61 +1,61 @@
 import os
 import json
 import sys
+import smtplib
+from datetime import datetime, timedelta
+from email.message import EmailMessage
 import firebase_admin
 from firebase_admin import credentials, db
 
 def initialize_firebase():
-    """
-    Inizializza l'app Firebase usando le credenziali passate tramite
-    variabile d'ambiente da GitHub Secrets.
-    """
-    # Il nome della variabile deve corrispondere a quello definito nello YAML
     raw_json = os.environ.get('FIREBASE_JSON_CONTENT')
-
     if not raw_json:
-        print("ERRORE: Variabile d'ambiente 'FIREBASE_JSON_CONTENT' non trovata.")
+        print("ERRORE: FIREBASE_JSON_CONTENT non trovato.")
         sys.exit(1)
-
-    print(f"DEBUG: Lunghezza stringa ricevuta: {len(raw_json)}")
-
-    try:
-        # Carica il JSON dalla stringa
-        cred_dict = json.loads(raw_json)
-        
-        # Inizializza Firebase
-        cred = credentials.Certificate(cred_dict)
-        firebase_admin.initialize_app(cred, {
-            'databaseURL': "https://corsi-sicurezza-ggi-default-rtdb.europe-west1.firebasedatabase.app/"
-        })
-        print("Firebase inizializzato correttamente!")
-        
-    except json.JSONDecodeError as e:
-        print(f"ERRORE di formato JSON: {e}")
-        sys.exit(1)
-    except Exception as e:
-        print(f"ERRORE durante l'inizializzazione di Firebase: {e}")
-        sys.exit(1)
+    
+    cred_dict = json.loads(raw_json)
+    cred = credentials.Certificate(cred_dict)
+    firebase_admin.initialize_app(cred, {
+        'databaseURL': "https://corsi-sicurezza-ggi-default-rtdb.europe-west1.firebasedatabase.app/"
+    })
 
 def invia_email():
-    """
-    Qui inserisci la tua logica per l'invio delle email.
-    Esempio: recupero dati dal Realtime Database e invio.
-    """
-    print("Inizio procedura di invio email...")
+    ref = db.reference('/corsi')
+    corsi = ref.get()
     
-    # Esempio di recupero dati (decommenta se serve):
-    # ref = db.reference('/tuo_path')
-    # dati = ref.get()
+    if not corsi:
+        print("Nessun corso nel database.")
+        return
+
+    oggi = datetime.now()
+    soglia = oggi + timedelta(days=30)
     
-    print("Email inviate con successo.")
+    gmail_user = os.environ.get('GMAIL_USER')
+    gmail_pass = os.environ.get('GMAIL_PASS')
+
+    for corso_id, info in corsi.items():
+        try:
+            # Parsing data europea DD/MM/YYYY
+            data_scadenza = datetime.strptime(info['scadenza'], '%d/%m/%Y')
+        except ValueError:
+            print(f"Data non valida per {info.get('nome_corso')}: {info.get('scadenza')}")
+            continue
+            
+        # Trigger: scadenza nei prossimi 30 giorni
+        if oggi <= data_scadenza <= soglia:
+            print(f"Invio avviso per: {info['nome_corso']}")
+            
+            msg = EmailMessage()
+            msg['Subject'] = f"Avviso scadenza corso: {info['nome_corso']}"
+            msg['From'] = gmail_user
+            msg['To'] = info['email_referente']
+            msg.set_content(f"Il corso '{info['nome_corso']}' scade il {info['scadenza']}. Provvedere al rinnovo.")
+            
+            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+                smtp.login(gmail_user, gmail_pass)
+                smtp.send_message(msg)
+            print(f"Email inviata a {info['email_referente']}")
 
 if __name__ == "__main__":
-    # 1. Setup ambiente
     initialize_firebase()
-    
-    # 2. Esecuzione task
-    try:
-        invia_email()
-    except Exception as e:
-        print(f"Errore critico durante l'esecuzione: {e}")
-        sys.exit(1)
+    invia_email()
