@@ -1,8 +1,6 @@
 name: Invio Email Automatico
 
 on:
-  schedule:
-    - cron: '0 8 * * *'
   workflow_dispatch:
 
 jobs:
@@ -18,5 +16,5 @@ jobs:
         run: pip install firebase-admin
       - name: Run Mailer
         env:
-          FIREBASE_JSON: ${{ secrets.FIREBASE_JSON }}
+          FIREBASE_JSON_CONTENT: ${{ secrets.FIREBASE_JSON }}
         run: python run_mailer.py
