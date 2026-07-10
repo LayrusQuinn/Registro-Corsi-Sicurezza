@@ -158,33 +158,30 @@ tab1, tab2 = st.tabs(["📋 Registro Corsi", "➕ Aggiungi Corso"])
 opzioni_corsi = ["Preposto", "RLS", "Primo Soccorso", "Antincendio", "PLE", "Muletto", "Base 4H", "Specifica 12H", "DP13 Lavori in quota", "Altro"]
 
 with tab2:
-    # Utilizziamo session_state per mantenere il nome anche dopo il rerun
+    # Gestione persistenza nome dipendente
     nom_add = st.text_input("Dipendente", value=st.session_state.get('last_nom', ''), key="add_nom")
-    scelta_add = st.selectbox("Corso", opzioni_corsi, key="add_sel")
-    corso_add = st.text_input("Specifica nome corso", key="add_altro") if scelta_add == "Altro" else scelta_add
     
-    with st.form("form_corso", clear_on_submit=True):
+    with st.form("form_corso", clear_on_submit=False):
+        scelta_add = st.selectbox("Corso", opzioni_corsi, key="add_sel")
+        corso_add = st.text_input("Specifica nome corso", key="add_altro") if scelta_add == "Altro" else scelta_add
         data_s = st.date_input("Data Svolgimento", format="DD/MM/YYYY")
         val = st.selectbox("Anni Validità", [1, 2, 3, 5, 10], index=3)
         
         col_c1, col_c2 = st.columns(2)
         
-        # Tasto Salva (chiude l'inserimento)
-        if col_c1.form_submit_button("Salva Corso"):
+        if col_c1.form_submit_button("💾 Salva Corso"):
             scadenza = data_s.replace(year=data_s.year + val)
             push_data('/corsi', {"nominativo": nom_add, "corso": corso_add, "data_svolto": str(data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
-            st.session_state.last_nom = "" # Reset nome
+            st.session_state.last_nom = ""
             st.rerun()
             
-        # Tasto Aggiungi Altro (salva e mantiene il nome)
         if col_c2.form_submit_button("➕ Aggiungi altro corso"):
             scadenza = data_s.replace(year=data_s.year + val)
             push_data('/corsi', {"nominativo": nom_add, "corso": corso_add, "data_svolto": str(data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
-            st.session_state.last_nom = nom_add # Mantiene il nome
+            st.session_state.last_nom = nom_add
             st.rerun()
 
 with tab1:
-    # ... (Il resto del codice di tab1 rimane identico a come lo avevi)
     st.subheader("Filtri")
     c1, c2 = st.columns(2)
     search = c1.text_input("🔍 Cerca dipendente o corso")
