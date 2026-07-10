@@ -196,7 +196,7 @@ with tab2:
 with tab1:
     st.subheader("Filtri")
     c1, c2 = st.columns(2)
-    search = c1.text_input("🔍 Cerca dipendente o corso")
+    search = c1.text_input("🔍 Cerca dipendente o corso", key="search_input")
     filtro_stato = c2.selectbox("Filtra per stato", ["Tutti", "🟢 IN CORSO", "⚠️ IN SCADENZA", "🔴 SCADUTO", "✅ Mail inviata"])
 
     with st.expander("✏️ Modifica o 🗑️ Elimina Corso"):
