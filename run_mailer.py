@@ -8,15 +8,23 @@ from datetime import datetime, timedelta
 import firebase_admin
 from firebase_admin import credentials, db
 
+# --- DEBUG AMBIENTE ---
+print("--- DEBUG AMBIENTE ---")
+print(f"Variabile FIREBASE_JSON presente: {'FIREBASE_JSON' in os.environ}")
+if 'FIREBASE_JSON' in os.environ:
+    val = os.environ['FIREBASE_JSON']
+    print(f"Lunghezza variabile: {len(val)}")
+    print(f"Primi 20 caratteri: {val[:20]}")
+else:
+    print("ERRORE CRITICO: La variabile FIREBASE_JSON non viene passata al workflow.")
+    sys.exit(1)
+
 # 1. Recupero e Validazione del Secret
 raw_json = os.environ.get('FIREBASE_JSON')
 
-if not raw_json:
-    print("ERRORE: Variabile FIREBASE_JSON non trovata.")
-    sys.exit(1)
-
 try:
     cred_dict = json.loads(raw_json)
+    print("JSON caricato correttamente!")
 except json.JSONDecodeError as e:
     print(f"ERRORE: Il contenuto non è un JSON valido. Dettagli: {e}")
     sys.exit(1)
@@ -35,9 +43,12 @@ except Exception as e:
 def invia_email(nominativo, corso, data_scadenza):
     try:
         config = db.reference('/config').get()
+        if not config:
+            print("ERRORE: Configurazione non trovata nel DB.")
+            return
+            
         mittente = config.get('email_mittente')
         password = config.get('password_mittente')
-        
         dest_data = db.reference('/destinatari').get()
         destinatari = [v['email'] for v in dest_data.values()] if dest_data else []
         
