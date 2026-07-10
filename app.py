@@ -160,9 +160,11 @@ opzioni_corsi = ["Preposto", "RLS", "Primo Soccorso", "Antincendio", "PLE", "Mul
 
 with tab2:
     if 'nom_value' not in st.session_state: st.session_state.nom_value = ""
+    if 'form_key' not in st.session_state: st.session_state.form_key = 0
+    
     st.text_input("Dipendente", value=st.session_state.nom_value, key="nom_input")
     
-    with st.form("form_corso", clear_on_submit=True):
+    with st.form(f"form_corso_{st.session_state.form_key}"):
         scelta_add = st.selectbox("Corso", opzioni_corsi, key="add_sel")
         corso_add = st.text_input("Specifica nome corso", key="add_altro") if scelta_add == "Altro" else scelta_add
         data_s = st.date_input("Data Svolgimento", format="DD/MM/YYYY")
@@ -182,6 +184,7 @@ with tab2:
                 "notifica_inviata": False
             })
             st.session_state.nom_value = st.session_state.nom_input if add_another else ""
+            st.session_state.form_key += 1
             st.success(f"Corso '{corso_add}' aggiunto correttamente per {st.session_state.nom_input}!")
             time.sleep(1)
             st.rerun()
