@@ -59,6 +59,7 @@ def delete_data(path, item_id):
 
 def reset_notifica(item_id):
     db.reference(f'/corsi/{item_id}', url=DB_URL).update({'notifica_inviata': False})
+    st.session_state.force_refresh = True
 
 # --- 5. LOGICA EMAIL PROFESSIONALE ---
 def invia_email(nominativo, corso, data_scadenza):
@@ -168,7 +169,7 @@ with st.sidebar:
                             inviati += 1
                 except: continue
         st.cache_data.clear()
-        st.success(f"Scansione completata! Inviate {inviati} email.")
+        st.rerun()
 
 # --- MAIN ---
 tab1, tab2 = st.tabs(["📋 Registro Corsi", "➕ Aggiungi Corso"])
@@ -248,6 +249,13 @@ with tab1:
                         st.rerun()
 
     st.divider()
+    
+    # Gestione del force_refresh
+    if st.session_state.get('force_refresh', False):
+        st.session_state.force_refresh = False
+        st.cache_data.clear()
+        st.rerun()
+
     corsi = get_data('/corsi')
     oggi = datetime.today().date()
     soglia = oggi + timedelta(days=30)
@@ -284,6 +292,5 @@ with tab1:
                     
                     if cols[6].button("🔄", key=f"res_{cid}"):
                         reset_notifica(cid)
-                        st.cache_data.clear()
                         st.rerun()
         except: continue
