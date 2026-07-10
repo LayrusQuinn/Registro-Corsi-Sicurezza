@@ -21,6 +21,6 @@ jobs:
         
       - name: Run Mailer
         env:
-          FIREBASE_JSON: ${{ secrets.FIREBASE_JSON }}
-          TEST_SECRET: ${{ secrets.TEST_SECRET }}
+          # Usiamo un nome leggermente diverso per forzare GitHub a rileggere il secret
+          SECRET_KEY_FIREBASE: ${{ secrets.FIREBASE_JSON }}
         run: python run_mailer.py
