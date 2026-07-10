@@ -151,17 +151,18 @@ with st.sidebar:
         corsi = get_data('/corsi')
         oggi = datetime.today().date()
         soglia = oggi + timedelta(days=30)
-        for cid, dati in corsi.items():
-            try:
-                d_scad = datetime.strptime(dati.get('data_scadenza', '2000-01-01'), "%Y-%m-%d").date()
-                if d_scad <= soglia and not dati.get('notifica_inviata', False):
-                    if "Inviato" in invia_email(dati.get('nominativo'), dati.get('corso'), dati.get('data_scadenza')):
-                        db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True})
-                except: continue
+        if corsi:
+            for cid, dati in corsi.items():
+                try:
+                    d_scad = datetime.strptime(dati.get('data_scadenza', '2000-01-01'), "%Y-%m-%d").date()
+                    if d_scad <= soglia and not dati.get('notifica_inviata', False):
+                        if "Inviato" in invia_email(dati.get('nominativo'), dati.get('corso'), dati.get('data_scadenza')):
+                            db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True})
+                except: 
+                    continue
         if 'corsi_cache' in st.session_state: del st.session_state.corsi_cache
         st.rerun()
 
-    # --- NUOVO PULSANTE DI RESET GLOBALE ---
     if st.button("🔄 Reset Mail Inviate", use_container_width=True):
         corsi = get_data('/corsi')
         if corsi:
@@ -234,7 +235,6 @@ with tab1:
     oggi = datetime.today().date()
     soglia = oggi + timedelta(days=30)
     
-    # Rimossa la settima colonna dedicata al reset individuale
     cols_header = st.columns([2, 2, 1.5, 1.5, 1, 1])
     cols_header[0].write("**Nominativo**")
     cols_header[1].write("**Corso**")
@@ -251,7 +251,6 @@ with tab1:
                 stato = "✅ Mail inviata" if d.get('notifica_inviata', False) else ("🔴 SCADUTO" if d_scad < oggi else ("⚠️ IN SCADENZA" if d_scad <= soglia else "🟢 IN CORSO"))
                 if (search.lower() in d.get('nominativo', '').lower() or search.lower() in d.get('corso', '').lower()):
                     if filtro_stato == "Tutti" or filtro_stato == stato:
-                        # Rimossa la settima colonna individuale dal rendering delle righe
                         cols = st.columns([2, 2, 1.5, 1.5, 1, 1])
                         cols[0].write(d.get('nominativo', ''))
                         cols[1].write(d.get('corso', ''))
