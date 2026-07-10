@@ -20,6 +20,7 @@ def initialize_firebase():
         firebase_admin.initialize_app(cred, {
             'databaseURL': "https://corsi-sicurezza-ggi-default-rtdb.europe-west1.firebasedatabase.app/"
         })
+        print("Firebase inizializzato correttamente.")
     except Exception as e:
         print(f"ERRORE durante inizializzazione Firebase: {e}")
         sys.exit(1)
@@ -37,7 +38,6 @@ def invia_email_a_tutti(nominativo, corso, data_scadenza):
     gmail_user = os.environ.get('GMAIL_USER')
     gmail_pass = os.environ.get('GMAIL_PASS')
     
-    # Formattazione data europea
     d_scad_obj = datetime.strptime(data_scadenza, '%Y-%m-%d')
     data_ita = d_scad_obj.strftime('%d/%m/%Y')
     
@@ -54,9 +54,11 @@ def invia_email_a_tutti(nominativo, corso, data_scadenza):
 
 def invia_email():
     print("Inizio scansione database...")
-    # Punta specificamente a /corsi come fa l'app Streamlit
     ref = db.reference('/corsi')
     corsi = ref.get()
+    
+    # DEBUG: Visualizza cosa viene letto
+    print(f"DEBUG: Dati letti da /corsi: {corsi}")
     
     if not corsi:
         print("Nessun corso trovato sotto /corsi.")
@@ -64,18 +66,28 @@ def invia_email():
 
     oggi = datetime.today()
     soglia = oggi + timedelta(days=30)
+    print(f"DEBUG: Scansione tra {oggi.date()} e {soglia.date()}")
 
     for cid, info in corsi.items():
+        print(f"DEBUG: Analizzo record {cid} -> {info.get('corso', 'N/A')}")
+        
         if isinstance(info, dict) and 'data_scadenza' in info:
             d_scad = datetime.strptime(info['data_scadenza'], '%Y-%m-%d')
+            inviata = info.get('notifica_inviata', False)
             
-            # Controllo se è in scadenza e se non è già stata inviata la notifica
-            if oggi <= d_scad <= soglia and not info.get('notifica_inviata', False):
-                print(f"Invio avviso per: {info['corso']} (Scadenza: {info['data_scadenza']})")
+            # Verifica condizioni
+            in_range = (oggi <= d_scad <= soglia)
+            
+            print(f"DEBUG: {info['corso']} | Scadenza: {d_scad.date()} | In range: {in_range} | Già inviata: {inviata}")
+            
+            if in_range and not inviata:
+                print(f"AZIONE: Invio notifica per {info['corso']}...")
                 invia_email_a_tutti(info['nominativo'], info['corso'], info['data_scadenza'])
-                
-                # Aggiorna lo stato nel database
                 db.reference(f'/corsi/{cid}').update({'notifica_inviata': True})
+            else:
+                print(f"SALTO: {info['corso']} non necessita di notifica.")
+        else:
+            print(f"DEBUG: Il record {cid} non ha una data_scadenza valida.")
 
 if __name__ == "__main__":
     initialize_firebase()
