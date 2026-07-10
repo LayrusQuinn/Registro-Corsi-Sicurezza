@@ -159,8 +159,8 @@ tab1, tab2 = st.tabs(["📋 Registro Corsi", "➕ Aggiungi Corso"])
 opzioni_corsi = ["Preposto", "RLS", "Primo Soccorso", "Antincendio", "PLE", "Muletto", "Base 4H", "Specifica 12H", "DP13 Lavori in quota", "Altro"]
 
 with tab2:
-    if 'last_nom' not in st.session_state: st.session_state.last_nom = ""
-    nom_add = st.text_input("Dipendente", value=st.session_state.last_nom, key="add_nom")
+    if 'nom_value' not in st.session_state: st.session_state.nom_value = ""
+    st.text_input("Dipendente", value=st.session_state.nom_value, key="nom_input")
     
     with st.form("form_corso", clear_on_submit=True):
         scelta_add = st.selectbox("Corso", opzioni_corsi, key="add_sel")
@@ -175,14 +175,14 @@ with tab2:
         if submit or add_another:
             scadenza = data_s.replace(year=data_s.year + val)
             push_data('/corsi', {
-                "nominativo": nom_add, 
+                "nominativo": st.session_state.nom_input, 
                 "corso": corso_add, 
                 "data_svolto": str(data_s), 
                 "data_scadenza": str(scadenza), 
                 "notifica_inviata": False
             })
-            st.session_state.last_nom = nom_add if add_another else ""
-            st.success(f"Corso '{corso_add}' aggiunto correttamente per {nom_add}!")
+            st.session_state.nom_value = st.session_state.nom_input if add_another else ""
+            st.success(f"Corso '{corso_add}' aggiunto correttamente per {st.session_state.nom_input}!")
             time.sleep(1)
             st.rerun()
 
