@@ -140,16 +140,19 @@ opzioni_corsi = ["Preposto", "RLS", "Primo Soccorso", "Antincendio", "PLE", "Mul
 with tab2:
     with st.form("form_corso", clear_on_submit=True):
         nom = st.text_input("Dipendente")
-        scelta_corso = st.selectbox("Corso", opzioni_corsi)
-        if scelta_corso == "Altro":
-            corso = st.text_input("Specifica nome corso")
+        scelta_add = st.selectbox("Corso", opzioni_corsi, key="add_sel")
+        
+        # Logica per input dinamico
+        if scelta_add == "Altro":
+            corso_add = st.text_input("Specifica nome corso")
         else:
-            corso = scelta_corso
+            corso_add = scelta_add
+            
         data_s = st.date_input("Data Svolgimento", format="DD/MM/YYYY")
         val = st.selectbox("Anni Validità", [1, 2, 3, 5, 10], index=3)
         if st.form_submit_button("Salva Corso"):
             scadenza = data_s.replace(year=data_s.year + val)
-            push_data('/corsi', {"nominativo": nom, "corso": corso, "data_svolto": str(data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
+            push_data('/corsi', {"nominativo": nom, "corso": corso_add, "data_svolto": str(data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
             st.rerun()
 
 with tab1:
@@ -169,8 +172,10 @@ with tab1:
             with st.form("form_modifica"):
                 new_nom = st.text_input("Dipendente", value=dati_da_mod.get('nominativo', ''))
                 
-                sel_idx = opzioni_corsi.index(dati_da_mod.get('corso', 'Altro')) if dati_da_mod.get('corso') in opzioni_corsi else 9
-                new_scelta = st.selectbox("Corso", opzioni_corsi, index=sel_idx)
+                # Logica per mantenere lo stato corretto nella modifica
+                idx_default = opzioni_corsi.index(dati_da_mod.get('corso')) if dati_da_mod.get('corso') in opzioni_corsi else 9
+                new_scelta = st.selectbox("Corso", opzioni_corsi, index=idx_default, key="mod_sel")
+                
                 if new_scelta == "Altro":
                     new_corso = st.text_input("Specifica nome corso", value=dati_da_mod.get('corso', ''))
                 else:
