@@ -240,7 +240,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "➕ Aggiungi Corso", 
     "🏗️ Scadenziario Cantieri", 
     "⏳ Nuova Scadenza Cantiere",
-    "📊 Matrice Competenze"
+    "📊 Tabella Corsi"
 ]) 
 
 opzioni_corsi = ["Preposto", "RLS", "Primo Soccorso", "Antincendio", 
@@ -367,7 +367,7 @@ with tab4:
                 st.error("Compila tutti i campi obbligatori (Cantiere e Parte di Cantiere)")
 
 with tab5:
-    st.subheader("📊 Matrice delle Competenze Formative")
+    st.subheader("📊 Tabella dei Corsi Formativi")
     st.write("Visualizzazione in tempo reale dello stato di formazione di tutto il personale.")
     
     def colora_matrice(val):
@@ -433,4 +433,4 @@ with tab5:
             height=max(200, len(dipendenti_unici) * 40 + 50)
         )
     else:
-        st.info("Nessun corso registrato nel database per poter generare la matrice.")
+        st.info("Nessun corso registrato nel database per poter generare la tabella.")
