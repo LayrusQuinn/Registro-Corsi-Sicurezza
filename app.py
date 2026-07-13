@@ -220,9 +220,10 @@ with tab1:
                 dati_da_mod = corsi[cid_da_mod] 
                 new_nom = st.text_input("Dipendente", value=dati_da_mod.get('nominativo', '')) 
                 new_corso = st.text_input("Corso", value=dati_da_mod.get('corso', '')) 
+                new_data = st.date_input("Data Svolgimento", value=datetime.strptime(dati_da_mod.get('data_svolto', datetime.today().strftime("%Y-%m-%d")), "%Y-%m-%d"), format="DD/MM/YYYY")
                 with st.form(f"form_modifica_{cid_da_mod}"): 
                     if st.form_submit_button("Salva Modifiche"): 
-                        db.reference(f'/corsi/{cid_da_mod}', url=DB_URL).update({"nominativo": new_nom, "corso": new_corso}) 
+                        db.reference(f'/corsi/{cid_da_mod}', url=DB_URL).update({"nominativo": new_nom, "corso": new_corso, "data_svolto": str(new_data)}) 
                         st.rerun() 
 
     st.divider() 
