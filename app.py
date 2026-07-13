@@ -95,7 +95,7 @@ def invia_email(nominativo, corso, data_scadenza):
     try: 
         d_scad_ita = datetime.strptime(data_scadenza, "%Y-%m-%d").strftime("%d/%m/%Y") 
     except: d_scad_ita = data_scadenza 
-    
+     
     msg = MIMEMultipart() 
     msg['From'] = mittente 
     msg['To'] = ", ".join(destinatari) 
@@ -121,7 +121,7 @@ def invia_email_cantiere(cantiere, parte, data_scadenza):
     try: 
         d_scad_ita = datetime.strptime(data_scadenza, "%Y-%m-%d").strftime("%d/%m/%Y") 
     except: d_scad_ita = data_scadenza 
-    
+     
     msg = MIMEMultipart() 
     msg['From'] = mittente 
     msg['To'] = ", ".join(destinatari) 
@@ -192,7 +192,7 @@ with st.sidebar:
     if st.button("🚀 Esegui Scansione", type="primary", use_container_width=True): 
         oggi = datetime.today().date() 
         soglia = oggi + timedelta(days=30) 
-        
+         
         # Scansione Scadenze Corsi
         corsi = get_data('/corsi') 
         if corsi: 
@@ -203,7 +203,7 @@ with st.sidebar:
                         invia_email(dati.get('nominativo'), dati.get('corso'), dati.get('data_scadenza')) 
                         db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True}) 
                 except: continue 
-                
+                 
         # Scansione Scadenze Cantieri
         rapporti = get_data('/rapporti_cantiere')
         if rapporti:
@@ -215,7 +215,7 @@ with st.sidebar:
                         db.reference(f'/rapporti_cantiere/{rid}', url=DB_URL).update({'notifica_inviata': True})
                 except: continue
         st.rerun() 
-        
+         
     if st.button("🔄 Reset Mail Inviate"): 
         corsi = get_data('/corsi') 
         if corsi: 
@@ -235,11 +235,12 @@ with st.sidebar:
                            use_container_width=True) 
 
 # --- MAIN --- 
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📋 Registro Corsi", 
     "➕ Aggiungi Corso", 
     "🏗️ Scadenziario Cantieri", 
-    "⏳ Nuova Scadenza Cantiere"
+    "⏳ Nuova Scadenza Cantiere",
+    "📊 Matrice Competenze"
 ]) 
 
 opzioni_corsi = ["Preposto", "RLS", "Primo Soccorso", "Antincendio", 
@@ -268,7 +269,7 @@ with tab1:
     c1, c2 = st.columns(2) 
     search = c1.text_input("🔍 Cerca") 
     filtro_stato = c2.selectbox("Filtra", ["Tutti", "🟢 IN CORSO", "⚠️ IN SCADENZA", "🔴 SCADUTO", "✅ Mail inviata"]) 
-    
+     
     with st.expander("✏️ Modifica o 🗑️ Elimina Corso"): 
         if corsi: 
             lista_corsi = ["Seleziona un corso..."] + [f"{d.get('nominativo')} - {d.get('corso')}" for cid, d in corsi.items()] 
@@ -295,7 +296,7 @@ with tab1:
             elif d_scad <= soglia: stato, colore = "⚠️ IN SCADENZA", "orange" 
             elif d.get('notifica_inviata', False): stato, colore = "✅ Mail inviata", "green" 
             else: stato, colore = "🟢 IN CORSO", "blue" 
-            
+             
             if (search.lower() in d.get('nominativo', '').lower()) and (filtro_stato == "Tutti" or filtro_stato == stato): 
                 with st.container(border=True): 
                     cols = st.columns([2, 2, 1, 1, 1, 0.5]) 
@@ -313,7 +314,7 @@ with tab4:
         nome_cantiere = st.text_input("Cantiere / Commessa")
         parte_cantiere = st.text_input("Parte di Cantiere / Opera da consegnare")
         data_scadenza = st.date_input("Data Scadenza Consegna", format="DD/MM/YYYY")
-        
+         
         if st.form_submit_button("💾 Salva Scadenza"):
             if nome_cantiere and parte_cantiere:
                 nuova_scadenza = {
@@ -331,15 +332,15 @@ with tab4:
 with tab3:
     st.subheader("🏗️ Scadenziario Consegne Cantieri")
     rapporti = get_data('/rapporti_cantiere')
-    
+     
     c3_1, c3_2 = st.columns(2)
     search_cantiere = c3_1.text_input("🔍 Cerca Cantiere o Componente", key="search_cantiere_input")
     filtro_stato_cant = c3_2.selectbox("Filtra Stato Consegna", ["Tutti", "🟢 IN CORSO", "⚠️ IN SCADENZA", "🔴 SCADUTO", "✅ Mail inviata"])
-    
+     
     st.divider()
     oggi = datetime.today().date()
     soglia = oggi + timedelta(days=30)
-    
+     
     if rapporti:
         for rid, d in rapporti.items():
             try:
@@ -348,10 +349,10 @@ with tab3:
                 elif d_scad <= soglia: stato, colore = "⚠️ IN SCADENZA", "orange"
                 elif d.get('notifica_inviata', False): stato, colore = "✅ Mail inviata", "green"
                 else: stato, colore = "🟢 IN CORSO", "blue"
-                
+                 
                 match_ricerca = (search_cantiere.lower() in d.get('cantiere', '').lower()) or (search_cantiere.lower() in d.get('parte', '').lower())
                 match_filtro = (filtro_stato_cant == "Tutti" or filtro_stato_cant == stato)
-                
+                 
                 if match_ricerca and match_filtro:
                     with st.container(border=True):
                         cols = st.columns([2, 2, 2, 1, 0.5])
@@ -364,3 +365,67 @@ with tab3:
             except: continue
     else:
         st.info("Nessuna scadenza di cantiere presente nel database.")
+
+with tab5:
+    st.subheader("📊 Matrice delle Competenze Formative")
+    st.write("Visualizzazione in tempo reale dello stato di formazione di tutto il personale.")
+    
+    def colora_matrice(val):
+        """Assegna i colori alle celle della matrice in base alla data di scadenza."""
+        if val == "-" or pd.isna(val):
+            return 'background-color: #f8f9fa; color: #adb5bd; text-align: center;'
+        try:
+            d_scad = datetime.strptime(val, "%d/%m/%Y").date()
+            oggi_mat = datetime.today().date()
+            soglia_mat = oggi_mat + timedelta(days=30)
+            if d_scad < oggi_mat:
+                return 'background-color: #f8d7da; color: #842029; font-weight: bold; text-align: center;'
+            elif d_scad <= soglia_mat:
+                return 'background-color: #fff3cd; color: #664d03; font-weight: bold; text-align: center;'
+            else:
+                return 'background-color: #d1e7dd; color: #0f5132; text-align: center;'
+        except:
+            return 'text-align: center;'
+
+    corsi_matrice = get_data('/corsi')
+    if corsi_matrice:
+        dipendenti_unici = sorted(list(set(d.get('nominativo', '').strip() for d in corsi_matrice.values() if d.get('nominativo'))))
+        corsi_base = [c for c in opzioni_corsi if c != "Altro"]
+        corsi_db = list(set(d.get('corso', '').strip() for d in corsi_matrice.values() if d.get('corso')))
+        colonne_corsi = sorted(list(set(corsi_base + corsi_db)))
+        
+        matrice_df = pd.DataFrame("-", index=dipendenti_unici, columns=colonne_corsi)
+        
+        for cid, d in corsi_matrice.items():
+            dip = d.get('nominativo', '').strip()
+            crs = d.get('corso', '').strip()
+            scad_raw = d.get('data_scadenza', '')
+            if dip and crs and scad_raw:
+                try:
+                    nuova_scad = datetime.strptime(scad_raw, "%Y-%m-%d").date()
+                    nuova_scad_ita = nuova_scad.strftime("%d/%m/%Y")
+                    valore_attuale = matrice_df.loc[dip, crs]
+                    if valore_attuale == "-":
+                        matrice_df.loc[dip, crs] = nuova_scad_ita
+                    else:
+                        scad_attuale = datetime.strptime(valore_attuale, "%d/%m/%Y").date()
+                        if nuova_scad > scad_attuale:
+                            matrice_df.loc[dip, crs] = nuova_scad_ita
+                except:
+                    continue
+        
+        col_l1, col_l2, col_l3, col_l4 = st.columns(4)
+        col_l1.markdown("🟩 **Verde**: Corso Valido")
+        col_l2.markdown("🟨 **Giallo**: In scadenza (30 gg)")
+        col_l3.markdown("🟥 **Rosso**: Scaduto")
+        col_l4.markdown("⬜ **Grigio**: Mai effettuato / Mancante")
+        st.divider()
+        
+        matrice_stilizzata = matrice_df.style.map(colora_matrice)
+        st.dataframe(
+            matrice_stilizzata, 
+            use_container_width=True,
+            height=max(200, len(dipendenti_unici) * 40 + 50)
+        )
+    else:
+        st.info("Nessun corso registrato nel database per poter generare la matrice.")
