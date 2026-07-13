@@ -287,7 +287,7 @@ with tab1:
 
     st.divider() 
     oggi = datetime.today().date() 
-    soglia =今日 + timedelta(days=30) 
+    soglia = oggi + timedelta(days=30) 
     for cid, d in corsi.items(): 
         try: 
             d_scad = datetime.strptime(d['data_scadenza'], "%Y-%m-%d").date() 
@@ -364,4 +364,3 @@ with tab3:
             except: continue
     else:
         st.info("Nessuna scadenza di cantiere presente nel database.")
-                        
