@@ -236,85 +236,60 @@ with st.sidebar:
 
 # --- MAIN --- 
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📊 Matrice Competenze",
+    "📋 Registro Corsi",
     "➕ Aggiungi Corso", 
     "🏗️ Scadenziario Cantieri", 
     "⏳ Nuova Scadenza Cantiere",
-    "📋 Registro Corsi"
+    "📊 Matrice Competenze"
 ]) 
 
 opzioni_corsi = ["Preposto", "RLS", "Primo Soccorso", "Antincendio", 
 "PLE", "Muletto", "Base 4H", "Specifica 12H", "DP13 Lavori in quota", 
 "Altro"] 
 
-with tab1:
-    st.subheader("📊 Matrice delle Competenze Formative")
-    st.write("Visualizzazione in tempo reale dello stato di formazione di tutto il personale.")
-    
-    def colora_matrice(val):
-        """Assegna i colori alle celle della matrice in base alla data di scadenza."""
-        if val == "-" or pd.isna(val):
-            return 'background-color: #f8f9fa; color: #adb5bd; text-align: center;'
-        try:
-            d_scad = datetime.strptime(val, "%d/%m/%Y").date()
-            oggi_mat = datetime.today().date()
-            soglia_mat = oggi_mat + timedelta(days=30)
-            if d_scad < oggi_mat:
-                return 'background-color: #f8d7da; color: #842029; font-weight: bold; text-align: center;'
-            elif d_scad <= soglia_mat:
-                return 'background-color: #fff3cd; color: #664d03; font-weight: bold; text-align: center;'
-            else:
-                return 'background-color: #d1e7dd; color: #0f5132; text-align: center;'
-        except:
-            return 'text-align: center;'
+with tab1: 
+    corsi = get_data('/corsi') 
+    c1, c2 = st.columns(2) 
+    search = c1.text_input("🔍 Cerca") 
+    filtro_stato = c2.selectbox("Filtra", ["Tutti", "🟢 IN CORSO", "⚠️ IN SCADENZA", "🔴 SCADUTO", "✅ Mail inviata"]) 
+     
+    with st.expander("✏️ Modifica o 🗑️ Elimina Corso"): 
+        if corsi: 
+            lista_corsi = ["Seleziona un corso..."] + [f"{d.get('nominativo')} - {d.get('corso')}" for cid, d in corsi.items()] 
+            mappa_opzioni = {f"{d.get('nominativo')} - {d.get('corso')}": cid for cid, d in corsi.items()} 
+            selezione = st.selectbox("Seleziona:", lista_corsi) 
+            if selezione != "Seleziona un corso...": 
+                cid_da_mod = mappa_opzioni[selezione] 
+                dati_da_mod = corsi[cid_da_mod] 
+                new_nom = st.text_input("Dipendente", value=dati_da_mod.get('nominativo', '')) 
+                new_corso = st.text_input("Corso", value=dati_da_mod.get('corso', '')) 
+                new_data = st.date_input("Data Svolgimento", value=datetime.strptime(dati_da_mod.get('data_svolto', datetime.today().strftime("%Y-%m-%d")), "%Y-%m-%d"), format="DD/MM/YYYY") 
+                with st.form(f"form_modifica_{cid_da_mod}"): 
+                    if st.form_submit_button("Salva Modifiche"): 
+                        db.reference(f'/corsi/{cid_da_mod}', url=DB_URL).update({"nominativo": new_nom, "corso": new_corso, "data_svolto": str(new_data)}) 
+                        st.rerun() 
 
-    corsi_matrice = get_data('/corsi')
-    if corsi_matrice:
-        dipendenti_unici = sorted(list(set(d.get('nominativo', '').strip() for d in corsi_matrice.values() if d.get('nominativo'))))
-        corsi_base = [c for c in opzioni_corsi if c != "Altro"]
-        corsi_db = list(set(d.get('corso', '').strip() for d in corsi_matrice.values() if d.get('corso')))
-        colonne_corsi = sorted(list(set(corsi_base + corsi_db)))
-        
-        matrice_df = pd.DataFrame("-", index=dipendenti_unici, columns=colonne_corsi)
-        
-        for cid, d in corsi_matrice.items():
-            dip = d.get('nominativo', '').strip()
-            crs = d.get('corso', '').strip()
-            scad_raw = d.get('data_scadenza', '')
-            if dip and crs and scad_raw:
-                try:
-                    nuova_scad = datetime.strptime(scad_raw, "%Y-%m-%d").date()
-                    nuova_scad_ita = nuova_scad.strftime("%d/%m/%Y")
-                    valore_attuale = matrice_df.loc[dip, crs]
-                    if valore_attuale == "-":
-                        matrice_df.loc[dip, crs] = nuova_scad_ita
-                    else:
-                        scad_attuale = datetime.strptime(valore_attuale, "%d/%m/%Y").date()
-                        if nuova_scad > scad_attuale:
-                            matrice_df.loc[dip, crs] = nuova_scad_ita
-                except:
-                    continue
-        
-        col_l1, col_l2, col_l3, col_l4 = st.columns(4)
-        col_l1.markdown("🟩 **Verde**: Corso Valido")
-        col_l2.markdown("🟨 **Giallo**: In scadenza (30 gg)")
-        col_l3.markdown("🟥 **Rosso**: Scaduto")
-        col_l4.markdown("⬜ **Grigio**: Mai effettuato / Mancante")
-        st.divider()
-        
-        # Gestione compatibilità versioni Pandas (.style.map vs .style.applymap)
-        try:
-            matrice_stilizzata = matrice_df.style.map(colora_matrice)
-        except AttributeError:
-            matrice_stilizzata = matrice_df.style.applymap(colora_matrice)
-            
-        st.dataframe(
-            matrice_stilizzata, 
-            use_container_width=True,
-            height=max(200, len(dipendenti_unici) * 40 + 50)
-        )
-    else:
-        st.info("Nessun corso registrato nel database per poter generare la matrice.")
+    st.divider() 
+    oggi = datetime.today().date() 
+    soglia = oggi + timedelta(days=30) 
+    for cid, d in corsi.items(): 
+        try: 
+            d_scad = datetime.strptime(d['data_scadenza'], "%Y-%m-%d").date() 
+            if d_scad < oggi: stato, colore = "🔴 SCADUTO", "red" 
+            elif d_scad <= soglia: stato, colore = "⚠️ IN SCADENZA", "orange" 
+            elif d.get('notifica_inviata', False): stato, colore = "✅ Mail inviata", "green" 
+            else: stato, colore = "🟢 IN CORSO", "blue" 
+             
+            if (search.lower() in d.get('nominativo', '').lower()) and (filtro_stato == "Tutti" or filtro_stato == stato): 
+                with st.container(border=True): 
+                    cols = st.columns([2, 2, 1, 1, 1, 0.5]) 
+                    cols[0].markdown(f":{colore}[{d.get('nominativo')}]") 
+                    cols[1].markdown(f":{colore}[{d.get('corso')}]") 
+                    cols[2].markdown(f":{colore}[{d.get('data_svolto')}]") 
+                    cols[3].markdown(f":{colore}[{d.get('data_scadenza')}]") 
+                    cols[4].markdown(f":{colore}[**{stato}**]") 
+                    if cols[5].button("🗑️", key=f"del_{cid}"): conferma_eliminazione(cid) 
+        except: continue
 
 with tab2: 
     if 'nom_dipendente' not in st.session_state: st.session_state.nom_dipendente = "" 
@@ -391,46 +366,71 @@ with tab4:
             else:
                 st.error("Compila tutti i campi obbligatori (Cantiere e Parte di Cantiere)")
 
-with tab5: 
-    corsi = get_data('/corsi') 
-    c1, c2 = st.columns(2) 
-    search = c1.text_input("🔍 Cerca") 
-    filtro_stato = c2.selectbox("Filtra", ["Tutti", "🟢 IN CORSO", "⚠️ IN SCADENZA", "🔴 SCADUTO", "✅ Mail inviata"]) 
-     
-    with st.expander("✏️ Modifica o 🗑️ Elimina Corso"): 
-        if corsi: 
-            lista_corsi = ["Seleziona un corso..."] + [f"{d.get('nominativo')} - {d.get('corso')}" for cid, d in corsi.items()] 
-            mappa_opzioni = {f"{d.get('nominativo')} - {d.get('corso')}": cid for cid, d in corsi.items()} 
-            selezione = st.selectbox("Seleziona:", lista_corsi) 
-            if selezione != "Seleziona un corso...": 
-                cid_da_mod = mappa_opzioni[selezione] 
-                dati_da_mod = corsi[cid_da_mod] 
-                new_nom = st.text_input("Dipendente", value=dati_da_mod.get('nominativo', '')) 
-                new_corso = st.text_input("Corso", value=dati_da_mod.get('corso', '')) 
-                new_data = st.date_input("Data Svolgimento", value=datetime.strptime(dati_da_mod.get('data_svolto', datetime.today().strftime("%Y-%m-%d")), "%Y-%m-%d"), format="DD/MM/YYYY") 
-                with st.form(f"form_modifica_{cid_da_mod}"): 
-                    if st.form_submit_button("Salva Modifiche"): 
-                        db.reference(f'/corsi/{cid_da_mod}', url=DB_URL).update({"nominativo": new_nom, "corso": new_corso, "data_svolto": str(new_data)}) 
-                        st.rerun() 
+with tab5:
+    st.subheader("📊 Matrice delle Competenze Formative")
+    st.write("Visualizzazione in tempo reale dello stato di formazione di tutto il personale.")
+    
+    def colora_matrice(val):
+        """Assegna i colori alle celle della matrice in base alla data di scadenza."""
+        if val == "-" or pd.isna(val):
+            return 'background-color: #f8f9fa; color: #adb5bd; text-align: center;'
+        try:
+            d_scad = datetime.strptime(val, "%d/%m/%Y").date()
+            oggi_mat = datetime.today().date()
+            soglia_mat = oggi_mat + timedelta(days=30)
+            if d_scad < oggi_mat:
+                return 'background-color: #f8d7da; color: #842029; font-weight: bold; text-align: center;'
+            elif d_scad <= soglia_mat:
+                return 'background-color: #fff3cd; color: #664d03; font-weight: bold; text-align: center;'
+            else:
+                return 'background-color: #d1e7dd; color: #0f5132; text-align: center;'
+        except:
+            return 'text-align: center;'
 
-    st.divider() 
-    oggi = datetime.today().date() 
-    soglia = oggi + timedelta(days=30) 
-    for cid, d in corsi.items(): 
-        try: 
-            d_scad = datetime.strptime(d['data_scadenza'], "%Y-%m-%d").date() 
-            if d_scad < oggi: stato, colore = "🔴 SCADUTO", "red" 
-            elif d_scad <= soglia: stato, colore = "⚠️ IN SCADENZA", "orange" 
-            elif d.get('notifica_inviata', False): stato, colore = "✅ Mail inviata", "green" 
-            else: stato, colore = "🟢 IN CORSO", "blue" 
-             
-            if (search.lower() in d.get('nominativo', '').lower()) and (filtro_stato == "Tutti" or filtro_stato == stato): 
-                with st.container(border=True): 
-                    cols = st.columns([2, 2, 1, 1, 1, 0.5]) 
-                    cols[0].markdown(f":{colore}[{d.get('nominativo')}]") 
-                    cols[1].markdown(f":{colore}[{d.get('corso')}]") 
-                    cols[2].markdown(f":{colore}[{d.get('data_svolto')}]") 
-                    cols[3].markdown(f":{colore}[{d.get('data_scadenza')}]") 
-                    cols[4].markdown(f":{colore}[**{stato}**]") 
-                    if cols[5].button("🗑️", key=f"del_{cid}"): conferma_eliminazione(cid) 
-        except: continue
+    corsi_matrice = get_data('/corsi')
+    if corsi_matrice:
+        dipendenti_unici = sorted(list(set(d.get('nominativo', '').strip() for d in corsi_matrice.values() if d.get('nominativo'))))
+        corsi_base = [c for c in opzioni_corsi if c != "Altro"]
+        corsi_db = list(set(d.get('corso', '').strip() for d in corsi_matrice.values() if d.get('corso')))
+        colonne_corsi = sorted(list(set(corsi_base + corsi_db)))
+        
+        matrice_df = pd.DataFrame("-", index=dipendenti_unici, columns=colonne_corsi)
+        
+        for cid, d in corsi_matrice.items():
+            dip = d.get('nominativo', '').strip()
+            crs = d.get('corso', '').strip()
+            scad_raw = d.get('data_scadenza', '')
+            if dip and crs and scad_raw:
+                try:
+                    nuova_scad = datetime.strptime(scad_raw, "%Y-%m-%d").date()
+                    nuova_scad_ita = nuova_scad.strftime("%d/%m/%Y")
+                    valore_attuale = matrice_df.loc[dip, crs]
+                    if valore_attuale == "-":
+                        matrice_df.loc[dip, crs] = nuova_scad_ita
+                    else:
+                        scad_attuale = datetime.strptime(valore_attuale, "%d/%m/%Y").date()
+                        if nuova_scad > scad_attuale:
+                            matrice_df.loc[dip, crs] = nuova_scad_ita
+                except:
+                    continue
+        
+        col_l1, col_l2, col_l3, col_l4 = st.columns(4)
+        col_l1.markdown("🟩 **Verde**: Corso Valido")
+        col_l2.markdown("🟨 **Giallo**: In scadenza (30 gg)")
+        col_l3.markdown("🟥 **Rosso**: Scaduto")
+        col_l4.markdown("⬜ **Grigio**: Mai effettuato / Mancante")
+        st.divider()
+        
+        # Gestione compatibilità versioni Pandas (.style.map vs .style.applymap)
+        try:
+            matrice_stilizzata = matrice_df.style.map(colora_matrice)
+        except AttributeError:
+            matrice_stilizzata = matrice_df.style.applymap(colora_matrice)
+            
+        st.dataframe(
+            matrice_stilizzata, 
+            use_container_width=True,
+            height=max(200, len(dipendenti_unici) * 40 + 50)
+        )
+    else:
+        st.info("Nessun corso registrato nel database per poter generare la matrice.")
