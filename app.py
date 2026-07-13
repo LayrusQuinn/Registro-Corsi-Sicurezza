@@ -11,8 +11,10 @@ import os
 import time
 import io
 
+
 # --- 1. CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="Sicurezza | Guasti Gino", layout="wide")
+
 
 # --- 2. SISTEMA DI LOGIN (PERSISTENTE VIA URL) ---
 if 'authenticated' not in st.session_state:
@@ -33,7 +35,8 @@ if not st.session_state.authenticated:
                 st.rerun()
             else:
                 st.error("Username o Password errati")
-    st.stop() 
+    st.stop()
+
 
 # --- 3. CONNESSIONE A FIREBASE ---
 DB_URL = "https://corsi-sicurezza-ggi-default-rtdb.europe-west1.firebasedatabase.app/"
@@ -45,6 +48,7 @@ if not firebase_admin._apps:
         firebase_admin.initialize_app(cred, {'databaseURL': DB_URL})
     except Exception as e:
         st.error(f"Errore connessione DB: {e}")
+
 
 # --- 4. FUNZIONI DI DATABASE ---
 def get_data(path):
@@ -61,6 +65,7 @@ def push_data(path, data):
 
 def delete_data(path, item_id):
     db.reference(f'{path}/{item_id}', url=DB_URL).delete()
+
 
 # --- 5. LOGICA EXCEL ---
 def esporta_excel(dati):
@@ -84,6 +89,7 @@ def esporta_excel(dati):
             worksheet.set_column(i, i, column_len)
     return output.getvalue()
 
+
 # --- 6. LOGICA EMAIL ---
 def invia_email(nominativo, corso, data_scadenza):
     config = get_data('/config')
@@ -92,15 +98,21 @@ def invia_email(nominativo, corso, data_scadenza):
     destinatari_dict = get_data('/destinatari')
     destinatari = [v['email'] for v in destinatari_dict.values()] if destinatari_dict else []
     if not destinatari or not password: return "Errore Config"
+
     try:
         d_scad_ita = datetime.strptime(data_scadenza, "%Y-%m-%d").strftime("%d/%m/%Y")
     except: d_scad_ita = data_scadenza
-    
+
     msg = MIMEMultipart()
     msg['From'] = mittente
     msg['To'] = ", ".join(destinatari)
     msg['Subject'] = f"⚠️ Notifica Scadenza Formazione: {corso} - {nominativo}"
-    corpo = f"<html><body><h2>Notifica Scadenza</h2><p>Dipendente: {nominativo}<br>Corso: {corso}<br>Scadenza: {d_scad_ita}</p></body></html>"
+    corpo = f"""
+Notifica Scadenza<br><br>
+Dipendente: {nominativo}<br>
+Corso: {corso}<br>
+Scadenza: {d_scad_ita}
+"""
     msg.attach(MIMEText(corpo, 'html'))
     try:
         server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
@@ -109,6 +121,7 @@ def invia_email(nominativo, corso, data_scadenza):
         server.quit()
         return "Inviato ✅"
     except Exception as e: return f"Errore: {e}"
+
 
 # --- 7. DIALOG PER ELIMINAZIONE ---
 @st.dialog("Conferma eliminazione")
@@ -122,6 +135,7 @@ def conferma_eliminazione(cid):
     if col_no.button("Annulla"):
         st.rerun()
 
+
 # --- 8. INTERFACCIA UTENTE ---
 st.title("Guasti Gino Impianti S.r.l.")
 
@@ -130,6 +144,7 @@ with st.sidebar:
         st.session_state.authenticated = False
         st.query_params.clear()
         st.rerun()
+
     st.header("⚙️ Impostazioni")
     with st.expander("📧 Configurazione SMTP"):
         with st.form("form_smtp"):
@@ -139,6 +154,7 @@ with st.sidebar:
                 set_data('/config/email_mittente', email_mit)
                 set_data('/config/password_mittente', pass_mit)
                 st.rerun()
+
     with st.expander("👥 Destinatari"):
         dest_attuali = get_data('/destinatari')
         for d_id, d_dati in dest_attuali.items():
@@ -152,6 +168,7 @@ with st.sidebar:
             if "@" in nuova_email:
                 push_data('/destinatari', {"email": nuova_email})
                 st.rerun()
+
     st.divider()
     if st.button("🚀 Esegui Scansione", type="primary", use_container_width=True):
         corsi = get_data('/corsi')
@@ -166,20 +183,24 @@ with st.sidebar:
                         db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True})
                 except: continue
         st.rerun()
+
     if st.button("🔄 Reset Mail Inviate"):
         corsi = get_data('/corsi')
         if corsi:
             for cid, dati in corsi.items():
                 db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': False})
         st.rerun()
+
     st.divider()
     corsi_per_export = get_data('/corsi')
     if corsi_per_export:
         st.download_button("📥 Esporta Excel", data=esporta_excel(corsi_per_export), file_name="Registro.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
 
+
 # --- MAIN ---
 tab1, tab2 = st.tabs(["📋 Registro Corsi", "➕ Aggiungi Corso"])
 opzioni_corsi = ["Preposto", "RLS", "Primo Soccorso", "Antincendio", "PLE", "Muletto", "Base 4H", "Specifica 12H", "DP13 Lavori in quota", "Altro"]
+
 
 with tab2:
     if 'nom_dipendente' not in st.session_state: st.session_state.nom_dipendente = ""
@@ -199,27 +220,64 @@ with tab2:
             st.session_state.form_key += 1
             st.rerun()
 
+
 with tab1:
     if 'corsi_cache' not in st.session_state: st.session_state.corsi_cache = get_data('/corsi')
     corsi = st.session_state.corsi_cache
     c1, c2 = st.columns(2)
     search = c1.text_input("🔍 Cerca")
     filtro_stato = c2.selectbox("Filtra", ["Tutti", "🟢 IN CORSO", "⚠️ IN SCADENZA", "🔴 SCADUTO", "✅ Mail inviata"])
-    
+
+    # =========================================================
+    # FORM DI MODIFICA AGGIORNATO
+    # =========================================================
     with st.expander("✏️ Modifica o 🗑️ Elimina Corso"):
         if corsi:
             lista_corsi = ["Seleziona un corso..."] + [f"{d.get('nominativo')} - {d.get('corso')}" for cid, d in corsi.items()]
             mappa_opzioni = {f"{d.get('nominativo')} - {d.get('corso')}": cid for cid, d in corsi.items()}
             selezione = st.selectbox("Seleziona:", lista_corsi)
+
             if selezione != "Seleziona un corso...":
                 cid_da_mod = mappa_opzioni[selezione]
                 dati_da_mod = corsi[cid_da_mod]
-                new_nom = st.text_input("Dipendente", value=dati_da_mod.get('nominativo', ''))
-                new_corso = st.text_input("Corso", value=dati_da_mod.get('corso', ''))
+
+                # --- valori di default per le date ---
+                data_svolto_str = dati_da_mod.get('data_svolto', '')
+                data_scadenza_str = dati_da_mod.get('data_scadenza', '')
+                try:
+                    data_svolto_default = datetime.strptime(data_svolto_str, "%Y-%m-%d").date()
+                except:
+                    data_svolto_default = datetime.today().date()
+
+                try:
+                    data_scadenza_default = datetime.strptime(data_scadenza_str, "%Y-%m-%d").date()
+                    anni_diff = data_scadenza_default.year - data_svolto_default.year
+                    if anni_diff not in [1, 2, 3, 5, 10]:
+                        anni_diff = 3
+                except:
+                    anni_diff = 3
+
                 with st.form(f"form_modifica_{cid_da_mod}"):
+                    new_nom = st.text_input("Dipendente", value=dati_da_mod.get('nominativo', ''))
+                    new_corso = st.text_input("Corso", value=dati_da_mod.get('corso', ''))
+                    new_data_s = st.date_input("Data Svolgimento", value=data_svolto_default, format="DD/MM/YYYY")
+                    new_val = st.selectbox("Anni Validità", [1, 2, 3, 5, 10], index=[1, 2, 3, 5, 10].index(anni_diff))
+
                     if st.form_submit_button("Salva Modifiche"):
-                        db.reference(f'/corsi/{cid_da_mod}', url=DB_URL).update({"nominativo": new_nom, "corso": new_corso})
-                        if 'corsi_cache' in st.session_state: del st.session_state.corsi_cache
+                        new_scadenza = new_data_s.replace(year=new_data_s.year + new_val)
+                        aggiornamenti = {
+                            "nominativo": new_nom,
+                            "corso": new_corso,
+                            "data_svolto": str(new_data_s),
+                            "data_scadenza": str(new_scadenza),
+                        }
+                        # se la scadenza cambia, permetti un nuovo invio della notifica
+                        if str(new_scadenza) != data_scadenza_str:
+                            aggiornamenti["notifica_inviata"] = False
+
+                        db.reference(f'/corsi/{cid_da_mod}', url=DB_URL).update(aggiornamenti)
+                        if 'corsi_cache' in st.session_state:
+                            del st.session_state.corsi_cache
                         st.rerun()
 
     st.divider()
@@ -232,7 +290,7 @@ with tab1:
             elif d_scad <= soglia: stato, colore = "⚠️ IN SCADENZA", "orange"
             elif d.get('notifica_inviata', False): stato, colore = "✅ Mail inviata", "green"
             else: stato, colore = "🟢 IN CORSO", "blue"
-            
+
             if (search.lower() in d.get('nominativo', '').lower()) and (filtro_stato == "Tutti" or filtro_stato == stato):
                 with st.container(border=True):
                     cols = st.columns([2, 2, 1, 1, 1, 0.5])
