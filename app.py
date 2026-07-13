@@ -237,10 +237,10 @@ with st.sidebar:
 # --- MAIN --- 
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📋 Registro Corsi",
+    "📊 Tabella Corsi",
     "➕ Aggiungi Corso", 
-    "🏗️ Scadenziario Cantieri", 
     "⏳ Nuova Scadenza Cantiere",
-    "📊 Tabella Corsi"
+    "🏗️ Scadenziario Cantieri"
 ]) 
 
 opzioni_corsi = ["Preposto", "RLS", "Primo Soccorso", "Antincendio", 
@@ -291,82 +291,7 @@ with tab1:
                     if cols[5].button("🗑️", key=f"del_{cid}"): conferma_eliminazione(cid) 
         except: continue
 
-with tab2: 
-    if 'nom_dipendente' not in st.session_state: st.session_state.nom_dipendente = "" 
-    if 'form_key' not in st.session_state: st.session_state.form_key = 0 
-    nom_input = st.text_input("Dipendente", value=st.session_state.nom_dipendente) 
-    st.session_state.nom_dipendente = nom_input 
-
-    with st.form(f"form_corso_{st.session_state.form_key}"): 
-        scelta_add = st.selectbox("Corso", opzioni_corsi) 
-        corso_add = st.text_input("Specifica nome corso") if scelta_add == "Altro" else scelta_add 
-        data_s = st.date_input("Data Svolgimento", format="DD/MM/YYYY") 
-        val = st.selectbox("Anni Validità", [1, 2, 3, 5, 10], index=3) 
-        if st.form_submit_button("💾 Salva Corso"): 
-            scadenza = data_s.replace(year=data_s.year + val) 
-            push_data('/corsi', {"nominativo": st.session_state.nom_dipendente, "corso": corso_add, "data_svolto": str(data_s), "data_scadenza": str(scadenza), "notifica_inviata": False}) 
-            st.session_state.form_key += 1 
-            st.rerun() 
-
-with tab3:
-    st.subheader("🏗️ Scadenziario Consegne Cantieri")
-    rapporti = get_data('/rapporti_cantiere')
-     
-    c3_1, c3_2 = st.columns(2)
-    search_cantiere = c3_1.text_input("🔍 Cerca Cantiere o Componente", key="search_cantiere_input")
-    filtro_stato_cant = c3_2.selectbox("Filtra Stato Consegna", ["Tutti", "🟢 IN CORSO", "⚠️ IN SCADENZA", "🔴 SCADUTO", "✅ Mail inviata"])
-     
-    st.divider()
-    oggi = datetime.today().date()
-    soglia = oggi + timedelta(days=30)
-     
-    if rapporti:
-        for rid, d in rapporti.items():
-            try:
-                d_scad = datetime.strptime(d['data_scadenza'], "%Y-%m-%d").date()
-                if d_scad < oggi: stato, colore = "🔴 SCADUTO", "red"
-                elif d_scad <= soglia: stato, colore = "⚠️ IN SCADENZA", "orange"
-                elif d.get('notifica_inviata', False): stato, colore = "✅ Mail inviata", "green"
-                else: stato, colore = "🟢 IN CORSO", "blue"
-                 
-                match_ricerca = (search_cantiere.lower() in d.get('cantiere', '').lower()) or (search_cantiere.lower() in d.get('parte', '').lower())
-                match_filtro = (filtro_stato_cant == "Tutti" or filtro_stato_cant == stato)
-                 
-                if match_ricerca and match_filtro:
-                    with st.container(border=True):
-                        cols = st.columns([2, 2, 2, 1, 0.5])
-                        cols[0].markdown(f":{colore}[**Cantiere:** {d.get('cantiere')}]")
-                        cols[1].markdown(f":{colore}[**Fase/Parte:** {d.get('parte')}]")
-                        cols[2].markdown(f":{colore}[**Scadenza:** {d.get('data_scadenza')}]")
-                        cols[3].markdown(f":{colore}[**{stato}**]")
-                        if cols[4].button("🗑️", key=f"del_cantiere_{rid}"): 
-                            conferma_eliminazione_rapporto(rid)
-            except: continue
-    else:
-        st.info("Nessuna scadenza di cantiere presente nel database.")
-
-with tab4:
-    st.subheader("⏳ Inserisci Nuova Scadenza Cantiere")
-    with st.form("form_scadenza_cantiere"):
-        nome_cantiere = st.text_input("Cantiere / Commessa")
-        parte_cantiere = st.text_input("Parte di Cantiere / Opera da consegnare")
-        data_scadenza = st.date_input("Data Scadenza Consegna", format="DD/MM/YYYY")
-         
-        if st.form_submit_button("💾 Salva Scadenza"):
-            if nome_cantiere and parte_cantiere:
-                nuova_scadenza = {
-                    "cantiere": nome_cantiere,
-                    "parte": parte_cantiere,
-                    "data_scadenza": str(data_scadenza),
-                    "notifica_inviata": False
-                }
-                push_data('/rapporti_cantiere', nuova_scadenza)
-                st.success("Scadenza cantiere memorizzata correttamente!")
-                st.rerun()
-            else:
-                st.error("Compila tutti i campi obbligatori (Cantiere e Parte di Cantiere)")
-
-with tab5:
+with tab2:
     st.subheader("📊 Tabella dei Corsi Formativi")
     st.write("Visualizzazione in tempo reale dello stato di formazione di tutto il personale.")
     
@@ -434,3 +359,78 @@ with tab5:
         )
     else:
         st.info("Nessun corso registrato nel database per poter generare la tabella.")
+
+with tab3: 
+    if 'nom_dipendente' not in st.session_state: st.session_state.nom_dipendente = "" 
+    if 'form_key' not in st.session_state: st.session_state.form_key = 0 
+    nom_input = st.text_input("Dipendente", value=st.session_state.nom_dipendente) 
+    st.session_state.nom_dipendente = nom_input 
+
+    with st.form(f"form_corso_{st.session_state.form_key}"): 
+        scelta_add = st.selectbox("Corso", opzioni_corsi) 
+        corso_add = st.text_input("Specifica nome corso") if scelta_add == "Altro" else scelta_add 
+        data_s = st.date_input("Data Svolgimento", format="DD/MM/YYYY") 
+        val = st.selectbox("Anni Validità", [1, 2, 3, 5, 10], index=3) 
+        if st.form_submit_button("💾 Salva Corso"): 
+            scadenza = data_s.replace(year=data_s.year + val) 
+            push_data('/corsi', {"nominativo": st.session_state.nom_dipendente, "corso": corso_add, "data_svolto": str(data_s), "data_scadenza": str(scadenza), "notifica_inviata": False}) 
+            st.session_state.form_key += 1 
+            st.rerun() 
+
+with tab4:
+    st.subheader("⏳ Inserisci Nuova Scadenza Cantiere")
+    with st.form("form_scadenza_cantiere"):
+        nome_cantiere = st.text_input("Cantiere / Commessa")
+        parte_cantiere = st.text_input("Parte di Cantiere / Opera da consegnare")
+        data_scadenza = st.date_input("Data Scadenza Consegna", format="DD/MM/YYYY")
+         
+        if st.form_submit_button("💾 Salva Scadenza"):
+            if nome_cantiere and parte_cantiere:
+                nuova_scadenza = {
+                    "cantiere": nome_cantiere,
+                    "parte": parte_cantiere,
+                    "data_scadenza": str(data_scadenza),
+                    "notifica_inviata": False
+                }
+                push_data('/rapporti_cantiere', nuova_scadenza)
+                st.success("Scadenza cantiere memorizzata correttamente!")
+                st.rerun()
+            else:
+                st.error("Compila tutti i campi obbligatori (Cantiere e Parte di Cantiere)")
+
+with tab5:
+    st.subheader("🏗️ Scadenziario Consegne Cantieri")
+    rapporti = get_data('/rapporti_cantiere')
+     
+    c3_1, c3_2 = st.columns(2)
+    search_cantiere = c3_1.text_input("🔍 Cerca Cantiere o Componente", key="search_cantiere_input")
+    filtro_stato_cant = c3_2.selectbox("Filtra Stato Consegna", ["Tutti", "🟢 IN CORSO", "⚠️ IN SCADENZA", "🔴 SCADUTO", "✅ Mail inviata"])
+     
+    st.divider()
+    oggi = datetime.today().date()
+    soglia = oggi + timedelta(days=30)
+     
+    if rapporti:
+        for rid, d in rapporti.items():
+            try:
+                d_scad = datetime.strptime(d['data_scadenza'], "%Y-%m-%d").date()
+                if d_scad < oggi: stato, colore = "🔴 SCADUTO", "red"
+                elif d_scad <= soglia: stato, colore = "⚠️ IN SCADENZA", "orange"
+                elif d.get('notifica_inviata', False): stato, colore = "✅ Mail inviata", "green"
+                else: stato, colore = "🟢 IN CORSO", "blue"
+                 
+                match_ricerca = (search_cantiere.lower() in d.get('cantiere', '').lower()) or (search_cantiere.lower() in d.get('parte', '').lower())
+                match_filtro = (filtro_stato_cant == "Tutti" or filtro_stato_cant == stato)
+                 
+                if match_ricerca and match_filtro:
+                    with st.container(border=True):
+                        cols = st.columns([2, 2, 2, 1, 0.5])
+                        cols[0].markdown(f":{colore}[**Cantiere:** {d.get('cantiere')}]")
+                        cols[1].markdown(f":{colore}[**Fase/Parte:** {d.get('parte')}]")
+                        cols[2].markdown(f":{colore}[**Scadenza:** {d.get('data_scadenza')}]")
+                        cols[3].markdown(f":{colore}[**{stato}**]")
+                        if cols[4].button("🗑️", key=f"del_cantiere_{rid}"): 
+                            conferma_eliminazione_rapporto(rid)
+            except: continue
+    else:
+        st.info("Nessuna scadenza di cantiere presente nel database.")
