@@ -112,15 +112,25 @@ def invia_email(nominativo, corso, data_scadenza):
     except Exception as e: return f"Errore: {e}" 
 
 # --- 7. DIALOG PER ELIMINAZIONE --- 
-@st.dialog("Conferma eliminazione") 
+@st.dialog("Conferma eliminazione corso") 
 def conferma_eliminazione(cid): 
     st.write("Vuoi davvero eliminare questo corso?") 
     col_si, col_no = st.columns(2) 
-    if col_si.button("Sì, elimina"): 
+    if col_si.button("Sì, elimina corso"): 
         delete_data('/corsi', cid) 
         st.rerun() 
     if col_no.button("Annulla"): 
         st.rerun() 
+
+@st.dialog("Conferma eliminazione rapporto")
+def conferma_eliminazione_rapporto(rid):
+    st.write("Vuoi davvero eliminare questo rapporto di cantiere?")
+    col_si, col_no = st.columns(2)
+    if col_si.button("Sì, elimina rapporto"):
+        delete_data('/rapporti_cantiere', rid)
+        st.rerun()
+    if col_no.button("Annulla"):
+        st.rerun()
 
 # --- 8. INTERFACCIA UTENTE --- 
 st.title("Guasti Gino Impianti S.r.l.") 
@@ -177,11 +187,16 @@ with st.sidebar:
     if corsi_per_export: 
         st.download_button("📥 Esporta Excel", 
                            data=esporta_excel(corsi_per_export), file_name="Registro.xlsx", 
-                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
                            use_container_width=True) 
 
 # --- MAIN --- 
-tab1, tab2 = st.tabs(["📋 Registro Corsi", "➕ Aggiungi Corso"]) 
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📋 Registro Corsi", 
+    "➕ Aggiungi Corso", 
+    "🏗️ Registro Rapporti Cantieri", 
+    "📝 Nuovo Rapporto Cantiere"
+]) 
 
 opzioni_corsi = ["Preposto", "RLS", "Primo Soccorso", "Antincendio", 
 "PLE", "Muletto", "Base 4H", "Specifica 12H", "DP13 Lavori in quota", 
@@ -220,7 +235,7 @@ with tab1:
                 dati_da_mod = corsi[cid_da_mod] 
                 new_nom = st.text_input("Dipendente", value=dati_da_mod.get('nominativo', '')) 
                 new_corso = st.text_input("Corso", value=dati_da_mod.get('corso', '')) 
-                new_data = st.date_input("Data Svolgimento", value=datetime.strptime(dati_da_mod.get('data_svolto', datetime.today().strftime("%Y-%m-%d")), "%Y-%m-%d"), format="DD/MM/YYYY")
+                new_data = st.date_input("Data Svolgimento", value=datetime.strptime(dati_da_mod.get('data_svolto', datetime.today().strftime("%Y-%m-%d")), "%Y-%m-%d"), format="DD/MM/YYYY") 
                 with st.form(f"form_modifica_{cid_da_mod}"): 
                     if st.form_submit_button("Salva Modifiche"): 
                         db.reference(f'/corsi/{cid_da_mod}', url=DB_URL).update({"nominativo": new_nom, "corso": new_corso, "data_svolto": str(new_data)}) 
@@ -247,3 +262,48 @@ with tab1:
                     cols[4].markdown(f":{colore}[**{stato}**]") 
                     if cols[5].button("🗑️", key=f"del_{cid}"): conferma_eliminazione(cid) 
         except: continue
+
+with tab4:
+    st.subheader("📝 Inserisci Rapporto di Cantiere")
+    with st.form("form_rapporto_cantiere"):
+        nome_cantiere = st.text_input("Nome Cantiere / Commessa")
+        data_lavoro = st.date_input("Data", format="DD/MM/YYYY")
+        descrizione = st.text_area("Descrizione delle attività svolte")
+        ore_lavoro = st.number_input("Ore totali dedicate", min_value=0.5, step=0.5, value=8.0)
+        
+        if st.form_submit_button("💾 Salva Rapporto"):
+            if nome_cantiere and descrizione:
+                nuovo_rapporto = {
+                    "cantiere": nome_cantiere,
+                    "data": str(data_lavoro),
+                    "descrizione": descrizione,
+                    "ore": ore_lavoro
+                }
+                push_data('/rapporti_cantiere', nuovo_rapporto)
+                st.success("Rapporto di cantiere salvato con successo!")
+                st.rerun()
+            else:
+                st.error("Compila tutti i campi obbligatori (Cantiere e Descrizione)")
+
+with tab3:
+    st.subheader("🏗️ Storico Rapporti Cantieri")
+    rapporti = get_data('/rapporti_cantiere')
+    
+    search_cantiere = st.text_input("🔍 Cerca per cantiere", key="search_cantiere_input")
+    
+    if rapporti:
+        for rid, rep in rapporti.items():
+            if search_cantiere.lower() in rep.get('cantiere', '').lower():
+                with st.container(border=True):
+                    col_info, col_del = st.columns([5, 0.5])
+                    
+                    with col_info:
+                        st.markdown(f"### 📍 {rep.get('cantiere')}")
+                        st.caption(f"📅 Data: {rep.get('data')} | ⏱️ Ore dedicate: {rep.get('ore')}")
+                        st.write(rep.get('descrizione'))
+                        
+                    with col_del:
+                        if st.button("🗑️", key=f"del_rapporto_{rid}"):
+                            conferma_eliminazione_rapporto(rid)
+    else:
+        st.info("Nessun rapporto di cantiere presente nel database.")
