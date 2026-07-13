@@ -12,7 +12,7 @@ import time
 import io 
 
 # --- 1. CONFIGURAZIONE PAGINA --- 
-st.set_page_config(page_title="Sicurezza | Guasti Gino", layout="wide") 
+st.set_page_config(page_title="Sicurezza & Cantieri | Guasti Gino", layout="wide") 
 
 # --- 2. SISTEMA DI LOGIN (PERSISTENTE VIA URL) --- 
 if 'authenticated' not in st.session_state: 
@@ -111,6 +111,32 @@ def invia_email(nominativo, corso, data_scadenza):
         return "Inviato ✅" 
     except Exception as e: return f"Errore: {e}" 
 
+def invia_email_cantiere(cantiere, parte, data_scadenza):
+    config = get_data('/config') 
+    mittente = config.get('email_mittente', '') 
+    password = config.get('password_mittente', '') 
+    destinatari_dict = get_data('/destinatari') 
+    destinatari = [v['email'] for v in destinatari_dict.values()] if destinatari_dict else [] 
+    if not destinatari or not password: return "Errore Config" 
+    try: 
+        d_scad_ita = datetime.strptime(data_scadenza, "%Y-%m-%d").strftime("%d/%m/%Y") 
+    except: d_scad_ita = data_scadenza 
+    
+    msg = MIMEMultipart() 
+    msg['From'] = mittente 
+    msg['To'] = ", ".join(destinatari) 
+    msg['Subject'] = f"⚠️ Notifica Scadenza Consegna Cantiere: {cantiere} - {parte}" 
+
+    corpo = f"<html><body><h2>Scadenza Termini Consegna Cantiere</h2><p>Cantiere: {cantiere}<br>Parte/Fase in scadenza: {parte}<br>Data Scadenza: {d_scad_ita}</p></body></html>" 
+    msg.attach(MIMEText(corpo, 'html')) 
+    try: 
+        server = smtplib.SMTP_SSL("smtp.gmail.com", 465) 
+        server.login(mittente, password) 
+        server.sendmail(mittente, destinatari, msg.as_string()) 
+        server.quit() 
+        return "Inviato ✅" 
+    except Exception as e: return f"Errore: {e}" 
+
 # --- 7. DIALOG PER ELIMINAZIONE --- 
 @st.dialog("Conferma eliminazione corso") 
 def conferma_eliminazione(cid): 
@@ -122,11 +148,11 @@ def conferma_eliminazione(cid):
     if col_no.button("Annulla"): 
         st.rerun() 
 
-@st.dialog("Conferma eliminazione rapporto")
+@st.dialog("Conferma eliminazione scadenza")
 def conferma_eliminazione_rapporto(rid):
-    st.write("Vuoi davvero eliminare questo rapporto di cantiere?")
+    st.write("Vuoi davvero eliminare questa scadenza di cantiere?")
     col_si, col_no = st.columns(2)
-    if col_si.button("Sì, elimina rapporto"):
+    if col_si.button("Sì, elimina scadenza"):
         delete_data('/rapporti_cantiere', rid)
         st.rerun()
     if col_no.button("Annulla"):
@@ -164,9 +190,11 @@ with st.sidebar:
                 st.rerun() 
     st.divider() 
     if st.button("🚀 Esegui Scansione", type="primary", use_container_width=True): 
-        corsi = get_data('/corsi') 
         oggi = datetime.today().date() 
         soglia = oggi + timedelta(days=30) 
+        
+        # Scansione Scadenze Corsi
+        corsi = get_data('/corsi') 
         if corsi: 
             for cid, dati in corsi.items(): 
                 try: 
@@ -175,12 +203,28 @@ with st.sidebar:
                         invia_email(dati.get('nominativo'), dati.get('corso'), dati.get('data_scadenza')) 
                         db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True}) 
                 except: continue 
+                
+        # Scansione Scadenze Cantieri
+        rapporti = get_data('/rapporti_cantiere')
+        if rapporti:
+            for rid, dati in rapporti.items():
+                try:
+                    d_scad = datetime.strptime(dati.get('data_scadenza', '2000-01-01'), "%Y-%m-%d").date()
+                    if d_scad <= soglia and not dati.get('notifica_inviata', False):
+                        invia_email_cantiere(dati.get('cantiere'), dati.get('parte'), dati.get('data_scadenza'))
+                        db.reference(f'/rapporti_cantiere/{rid}', url=DB_URL).update({'notifica_inviata': True})
+                except: continue
         st.rerun() 
+        
     if st.button("🔄 Reset Mail Inviate"): 
         corsi = get_data('/corsi') 
         if corsi: 
             for cid, dati in corsi.items(): 
                 db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': False}) 
+        rapporti = get_data('/rapporti_cantiere')
+        if rapporti:
+            for rid, dati in rapporti.items():
+                db.reference(f'/rapporti_cantiere/{rid}', url=DB_URL).update({'notifica_inviata': False})
         st.rerun() 
     st.divider() 
     corsi_per_export = get_data('/corsi') 
@@ -194,8 +238,8 @@ with st.sidebar:
 tab1, tab2, tab3, tab4 = st.tabs([
     "📋 Registro Corsi", 
     "➕ Aggiungi Corso", 
-    "🏗️ Registro Rapporti Cantieri", 
-    "📝 Nuovo Rapporto Cantiere"
+    "🏗️ Scadenziario Cantieri", 
+    "⏳ Nuova Scadenza Cantiere"
 ]) 
 
 opzioni_corsi = ["Preposto", "RLS", "Primo Soccorso", "Antincendio", 
@@ -243,7 +287,7 @@ with tab1:
 
     st.divider() 
     oggi = datetime.today().date() 
-    soglia = oggi + timedelta(days=30) 
+    soglia =今日 + timedelta(days=30) 
     for cid, d in corsi.items(): 
         try: 
             d_scad = datetime.strptime(d['data_scadenza'], "%Y-%m-%d").date() 
@@ -264,46 +308,60 @@ with tab1:
         except: continue
 
 with tab4:
-    st.subheader("📝 Inserisci Rapporto di Cantiere")
-    with st.form("form_rapporto_cantiere"):
-        nome_cantiere = st.text_input("Nome Cantiere / Commessa")
-        data_lavoro = st.date_input("Data", format="DD/MM/YYYY")
-        descrizione = st.text_area("Descrizione delle attività svolte")
-        ore_lavoro = st.number_input("Ore totali dedicate", min_value=0.5, step=0.5, value=8.0)
+    st.subheader("⏳ Inserisci Nuova Scadenza Cantiere")
+    with st.form("form_scadenza_cantiere"):
+        nome_cantiere = st.text_input("Cantiere / Commessa")
+        parte_cantiere = st.text_input("Parte di Cantiere / Opera da consegnare")
+        data_scadenza = st.date_input("Data Scadenza Consegna", format="DD/MM/YYYY")
         
-        if st.form_submit_button("💾 Salva Rapporto"):
-            if nome_cantiere and descrizione:
-                nuovo_rapporto = {
+        if st.form_submit_button("💾 Salva Scadenza"):
+            if nome_cantiere and parte_cantiere:
+                nuova_scadenza = {
                     "cantiere": nome_cantiere,
-                    "data": str(data_lavoro),
-                    "descrizione": descrizione,
-                    "ore": ore_lavoro
+                    "parte": parte_cantiere,
+                    "data_scadenza": str(data_scadenza),
+                    "notifica_inviata": False
                 }
-                push_data('/rapporti_cantiere', nuovo_rapporto)
-                st.success("Rapporto di cantiere salvato con successo!")
+                push_data('/rapporti_cantiere', nuova_scadenza)
+                st.success("Scadenza cantiere memorizzata correttamente!")
                 st.rerun()
             else:
-                st.error("Compila tutti i campi obbligatori (Cantiere e Descrizione)")
+                st.error("Compila tutti i campi obbligatori (Cantiere e Parte di Cantiere)")
 
 with tab3:
-    st.subheader("🏗️ Storico Rapporti Cantieri")
+    st.subheader("🏗️ Scadenziario Consegne Cantieri")
     rapporti = get_data('/rapporti_cantiere')
     
-    search_cantiere = st.text_input("🔍 Cerca per cantiere", key="search_cantiere_input")
+    c3_1, c3_2 = st.columns(2)
+    search_cantiere = c3_1.text_input("🔍 Cerca Cantiere o Componente", key="search_cantiere_input")
+    filtro_stato_cant = c3_2.selectbox("Filtra Stato Consegna", ["Tutti", "🟢 IN CORSO", "⚠️ IN SCADENZA", "🔴 SCADUTO", "✅ Mail inviata"])
+    
+    st.divider()
+    oggi = datetime.today().date()
+    soglia = oggi + timedelta(days=30)
     
     if rapporti:
-        for rid, rep in rapporti.items():
-            if search_cantiere.lower() in rep.get('cantiere', '').lower():
-                with st.container(border=True):
-                    col_info, col_del = st.columns([5, 0.5])
-                    
-                    with col_info:
-                        st.markdown(f"### 📍 {rep.get('cantiere')}")
-                        st.caption(f"📅 Data: {rep.get('data')} | ⏱️ Ore dedicate: {rep.get('ore')}")
-                        st.write(rep.get('descrizione'))
-                        
-                    with col_del:
-                        if st.button("🗑️", key=f"del_rapporto_{rid}"):
+        for rid, d in rapporti.items():
+            try:
+                d_scad = datetime.strptime(d['data_scadenza'], "%Y-%m-%d").date()
+                if d_scad < oggi: stato, colore = "🔴 SCADUTO", "red"
+                elif d_scad <= soglia: stato, colore = "⚠️ IN SCADENZA", "orange"
+                elif d.get('notifica_inviata', False): stato, colore = "✅ Mail inviata", "green"
+                else: stato, colore = "🟢 IN CORSO", "blue"
+                
+                match_ricerca = (search_cantiere.lower() in d.get('cantiere', '').lower()) or (search_cantiere.lower() in d.get('parte', '').lower())
+                match_filtro = (filtro_stato_cant == "Tutti" or filtro_stato_cant == stato)
+                
+                if match_ricerca and match_filtro:
+                    with st.container(border=True):
+                        cols = st.columns([2, 2, 2, 1, 0.5])
+                        cols[0].markdown(f":{colore}[**Cantiere:** {d.get('cantiere')}]")
+                        cols[1].markdown(f":{colore}[**Fase/Parte:** {d.get('parte')}]")
+                        cols[2].markdown(f":{colore}[**Scadenza:** {d.get('data_scadenza')}]")
+                        cols[3].markdown(f":{colore}[**{stato}**]")
+                        if cols[4].button("🗑️", key=f"del_cantiere_{rid}"): 
                             conferma_eliminazione_rapporto(rid)
+            except: continue
     else:
-        st.info("Nessun rapporto di cantiere presente nel database.")
+        st.info("Nessuna scadenza di cantiere presente nel database.")
+                        
