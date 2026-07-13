@@ -214,12 +214,29 @@ with tab1:
             if selezione != "Seleziona un corso...":
                 cid_da_mod = mappa_opzioni[selezione]
                 dati_da_mod = corsi[cid_da_mod]
-                new_nom = st.text_input("Dipendente", value=dati_da_mod.get('nominativo', ''))
-                new_corso = st.text_input("Corso", value=dati_da_mod.get('corso', ''))
+                
+                # --- MODIFICA AGGIORNATA CON DATE ---
                 with st.form(f"form_modifica_{cid_da_mod}"):
+                    new_nom = st.text_input("Dipendente", value=dati_da_mod.get('nominativo', ''))
+                    new_corso = st.text_input("Corso", value=dati_da_mod.get('corso', ''))
+                    
+                    # Parsing della data esistente
+                    data_esistente = datetime.strptime(dati_da_mod.get('data_svolto', str(datetime.today().date())), "%Y-%m-%d")
+                    new_data_svolto = st.date_input("Data Svolgimento", value=data_esistente, format="DD/MM/YYYY")
+                    new_validita = st.selectbox("Anni Validità", [1, 2, 3, 5, 10], index=3)
+                    
                     if st.form_submit_button("Salva Modifiche"):
-                        db.reference(f'/corsi/{cid_da_mod}', url=DB_URL).update({"nominativo": new_nom, "corso": new_corso})
+                        # Ricalcolo scadenza
+                        new_scadenza = new_data_svolto.replace(year=new_data_svolto.year + new_validita)
+                        
+                        db.reference(f'/corsi/{cid_da_mod}', url=DB_URL).update({
+                            "nominativo": new_nom, 
+                            "corso": new_corso,
+                            "data_svolto": str(new_data_svolto),
+                            "data_scadenza": str(new_scadenza)
+                        })
                         if 'corsi_cache' in st.session_state: del st.session_state.corsi_cache
+                        st.success("Modifica salvata!")
                         st.rerun()
 
     st.divider()
