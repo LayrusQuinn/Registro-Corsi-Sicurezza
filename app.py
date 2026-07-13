@@ -18,10 +18,10 @@ st.set_page_config(page_title="Sicurezza | Guasti Gino", layout="wide")
 if 'authenticated' not in st.session_state: 
     st.session_state.authenticated = False 
 
- if st.query_params.get("logged_in") == "true": 
+if st.query_params.get("logged_in") == "true": 
     st.session_state.authenticated = True 
 
- if not st.session_state.authenticated: 
+if not st.session_state.authenticated: 
     st.title("🔐 Accesso Riservato - Guasti Gino Impianti") 
     with st.form("login_form"): 
         user_input = st.text_input("Username") 
@@ -35,10 +35,10 @@ if 'authenticated' not in st.session_state:
                 st.error("Username o Password errati") 
     st.stop()  
 
- # --- 3. CONNESSIONE A FIREBASE --- 
- DB_URL = "https://corsi-sicurezza-ggi-default-rtdb.europe-west1.firebasedatabase.app/" 
+# --- 3. CONNESSIONE A FIREBASE --- 
+DB_URL = "https://corsi-sicurezza-ggi-default-rtdb.europe-west1.firebasedatabase.app/" 
 
- if not firebase_admin._apps: 
+if not firebase_admin._apps: 
     try: 
         key_dict = json.loads(st.secrets["firebase_json"]) 
         cred = credentials.Certificate(key_dict) 
@@ -46,24 +46,24 @@ if 'authenticated' not in st.session_state:
     except Exception as e: 
         st.error(f"Errore connessione DB: {e}") 
 
- # --- 4. FUNZIONI DI DATABASE --- 
- def get_data(path): 
+# --- 4. FUNZIONI DI DATABASE --- 
+def get_data(path): 
     try: 
         dati = db.reference(path, url=DB_URL).get() 
         return dati if dati else {} 
     except: return {} 
 
- def set_data(path, data): 
+def set_data(path, data): 
     db.reference(path, url=DB_URL).set(data) 
 
- def push_data(path, data): 
+def push_data(path, data): 
     db.reference(path, url=DB_URL).push(data) 
 
- def delete_data(path, item_id): 
+def delete_data(path, item_id): 
     db.reference(f'{path}/{item_id}', url=DB_URL).delete() 
 
- # --- 5. LOGICA EXCEL --- 
- def esporta_excel(dati): 
+# --- 5. LOGICA EXCEL --- 
+def esporta_excel(dati): 
     lista_dati = [] 
     for cid, d in dati.items(): 
         lista_dati.append({ 
@@ -84,8 +84,8 @@ if 'authenticated' not in st.session_state:
             worksheet.set_column(i, i, column_len) 
     return output.getvalue() 
 
- # --- 6. LOGICA EMAIL --- 
- def invia_email(nominativo, corso, data_scadenza): 
+# --- 6. LOGICA EMAIL --- 
+def invia_email(nominativo, corso, data_scadenza): 
     config = get_data('/config') 
     mittente = config.get('email_mittente', '') 
     password = config.get('password_mittente', '') 
@@ -111,9 +111,9 @@ if 'authenticated' not in st.session_state:
         return "Inviato ✅" 
     except Exception as e: return f"Errore: {e}" 
 
- # --- 7. DIALOG PER ELIMINAZIONE --- 
- @st.dialog("Conferma eliminazione") 
- def conferma_eliminazione(cid): 
+# --- 7. DIALOG PER ELIMINAZIONE --- 
+@st.dialog("Conferma eliminazione") 
+def conferma_eliminazione(cid): 
     st.write("Vuoi davvero eliminare questo corso?") 
     col_si, col_no = st.columns(2) 
     if col_si.button("Sì, elimina"): 
@@ -122,10 +122,10 @@ if 'authenticated' not in st.session_state:
     if col_no.button("Annulla"): 
         st.rerun() 
 
- # --- 8. INTERFACCIA UTENTE --- 
- st.title("Guasti Gino Impianti S.r.l.") 
+# --- 8. INTERFACCIA UTENTE --- 
+st.title("Guasti Gino Impianti S.r.l.") 
 
- with st.sidebar: 
+with st.sidebar: 
     if st.button("🚪 Logout"): 
         st.session_state.authenticated = False 
         st.query_params.clear() 
@@ -176,18 +176,18 @@ if 'authenticated' not in st.session_state:
     corsi_per_export = get_data('/corsi') 
     if corsi_per_export: 
         st.download_button("📥 Esporta Excel", 
-data=esporta_excel(corsi_per_export), file_name="Registro.xlsx", 
-mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
- use_container_width=True) 
+                           data=esporta_excel(corsi_per_export), file_name="Registro.xlsx", 
+                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                           use_container_width=True) 
 
- # --- MAIN --- 
- tab1, tab2 = st.tabs(["📋 Registro Corsi", "➕ Aggiungi Corso"]) 
+# --- MAIN --- 
+tab1, tab2 = st.tabs(["📋 Registro Corsi", "➕ Aggiungi Corso"]) 
 
- opzioni_corsi = ["Preposto", "RLS", "Primo Soccorso", "Antincendio", 
+opzioni_corsi = ["Preposto", "RLS", "Primo Soccorso", "Antincendio", 
 "PLE", "Muletto", "Base 4H", "Specifica 12H", "DP13 Lavori in quota", 
 "Altro"] 
 
- with tab2: 
+with tab2: 
     if 'nom_dipendente' not in st.session_state: st.session_state.nom_dipendente = "" 
     if 'form_key' not in st.session_state: st.session_state.form_key = 0 
     nom_input = st.text_input("Dipendente", value=st.session_state.nom_dipendente) 
@@ -204,8 +204,7 @@ mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             st.session_state.form_key += 1 
             st.rerun() 
 
- with tab1: 
-    # RIMOSSA LA CACHE: ora legge direttamente dal DB per riflettere le modifiche esterne
+with tab1: 
     corsi = get_data('/corsi') 
     c1, c2 = st.columns(2) 
     search = c1.text_input("🔍 Cerca") 
