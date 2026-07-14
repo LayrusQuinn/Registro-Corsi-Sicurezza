@@ -1,7 +1,8 @@
 name: Notifica Scadenze Corsi
 
 on:
-  # Esecuzione automatica ogni mattina alle 06:56 UTC (08:56 italiane con ora legale / 07:56 solare)
+  # Esecuzione automatica ogni mattina alle 07:45 UTC (09:45 italiane con ora legale)
+  # Nota: in inverno (ora solare, UTC+1) questo cron girerà alle 08:45 italiane.
   schedule:
     - cron: '45 7 * * *'
   # Permette di lanciarlo manualmente dalla tab "Actions" su GitHub per fare dei test
