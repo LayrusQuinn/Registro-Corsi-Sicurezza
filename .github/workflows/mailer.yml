@@ -1,11 +1,14 @@
 name: Notifica Scadenze Corsi
 
 on:
-  # Esecuzione automatica ogni mattina alle 07:45 UTC (09:45 italiane con ora legale)
-  # Nota: in inverno (ora solare, UTC+1) questo cron girerà alle 08:45 italiane.
+  # Trigger per testare l'automazione istantaneamente ad ogni push
+  push:
+    branches:
+      - main
+  # Esecuzione programmata alle 09:45 italiane (07:45 UTC)
   schedule:
-    - cron: '0 8 * * *'
-  # Permette di lanciarlo manualmente dalla tab "Actions" su GitHub per fare dei test
+    - cron: '45 7 * * *'
+  # Permette di lanciarlo manualmente dalla tab "Actions"
   workflow_dispatch:
 
 jobs:
@@ -28,7 +31,6 @@ jobs:
       - name: Esecuzione script mailer
         run: python run_mailer.py
         env:
-          # Mappatura dei segreti per Firebase e l'invio SMTP di Gmail
           FIREBASE_JSON_CONTENT: ${{ secrets.FIREBASE_JSON }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_PASS: ${{ secrets.GMAIL_PASS }}
