@@ -4,9 +4,9 @@ on:
   push:
     branches:
       - main
-# Esecuzione automatica ogni mattina alle 06:00 UTC (08:00 italiane)
+  # Esecuzione automatica ogni mattina alle 06:56 UTC (08:56 italiane con ora legale / 07:56 solare)
   schedule:
-    - cron: '56 6 * * *'
+    - cron: '30 7 * * *'
   # Permette di lanciarlo manualmente dalla tab "Actions" su GitHub
   workflow_dispatch:
 
@@ -15,15 +15,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout del codice
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
       - name: Installazione dipendenze
         run: |
+          python -m pip install --upgrade pip
           pip install firebase-admin
 
       - name: Esecuzione script mailer
