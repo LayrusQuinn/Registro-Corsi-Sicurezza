@@ -81,6 +81,10 @@ def delete_data(path, item_id):
     db.reference(f'{path}/{item_id}', url=DB_URL).delete()
     st.rerun()
 
+def update_data(path, item_id, data):
+    db.reference(f'{path}/{item_id}', url=DB_URL).update(data)
+    st.rerun()
+
 # --- 5. LOGICA EXCEL ---
 def esporta_excel(dati):
     lista_dati = []
@@ -167,12 +171,82 @@ def conferma_eliminazione_rapporto(rid):
         st.rerun()
     if st.button("Annulla"): st.rerun()
 
+@st.dialog("📝 Modifica Corso")
+def modifica_corso_dialog(cid, dati_corso):
+    st.write(f"**Nominativo:** {dati_corso.get('nominativo')}")
+    st.write(f"**Corso:** {dati_corso.get('corso')}")
+    
+    # Parse data attuale
+    data_attuale = datetime.strptime(dati_corso.get('data_scadenza'), "%Y-%m-%d").date()
+    
+    # Input nuova data
+    nuova_data = st.date_input("📅 Nuova data scadenza:", value=data_attuale)
+    reset_notifica = st.checkbox("🔄 Reset notifica inviata (torna a 🟢 IN CORSO)")
+    
+    # ANTEPRIMA
+    st.divider()
+    st.subheader("📊 Anteprima Modifiche:")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write("**Data Scadenza Attuale:**")
+        st.write(f"🔴 {dati_corso.get('data_scadenza')}")
+    with col2:
+        st.write("**Data Scadenza Nuova:**")
+        st.write(f"🟢 {str(nuova_data)}")
+    
+    if reset_notifica:
+        st.write("**Notifica inviata:** ✅ True → 🔄 False (reset)")
+    
+    st.divider()
+    
+    # Bottoni Conferma/Annulla
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("✅ Conferma Modifiche", use_container_width=True):
+            dati_aggiornati = {'data_scadenza': str(nuova_data)}
+            if reset_notifica:
+                dati_aggiornati['notifica_inviata'] = False
+            update_data('/corsi', cid, dati_aggiornati)
+            st.success("Corso modificato con successo! ✅")
+            st.rerun()
+    
+    with col2:
+        if st.button("❌ Annulla", use_container_width=True):
+            st.info("Modifiche annullate.")
+            st.rerun()
+
 # --- 8. UI RENDER ---
 def render_registro():
     corsi = get_data('/corsi')
+    
+    # --- SEZIONE MODIFICA IN ALTO ---
+    st.subheader("📝 Modifica Corsi")
+    
+    if corsi:
+        # Crea lista di opzioni per il dropdown
+        opzioni_corsi = {}
+        for cid, d in corsi.items():
+            label = f"{d.get('nominativo')} - {d.get('corso')} (Scade: {d.get('data_scadenza')})"
+            opzioni_corsi[label] = cid
+        
+        corso_selezionato = st.selectbox(
+            "Seleziona corso da modificare:",
+            options=list(opzioni_corsi.keys()),
+            key="modifica_selectbox"
+        )
+        
+        if st.button("✏️ Modifica Corso Selezionato", use_container_width=True):
+            cid_selezionato = opzioni_corsi[corso_selezionato]
+            modifica_corso_dialog(cid_selezionato, corsi[cid_selezionato])
+    
+    st.divider()
+    
+    # --- SEZIONE RICERCA E FILTRI ---
     c1, c2 = st.columns(2)
     search = c1.text_input("🔍 Cerca")
     filtro_stato = c2.selectbox("Filtra", ["Tutti", "🟢 IN CORSO", "⚠️ IN SCADENZA", "🔴 SCADUTO", "✅ Mail inviata"])
+    
     if corsi:
         for cid, d in corsi.items():
             try:
