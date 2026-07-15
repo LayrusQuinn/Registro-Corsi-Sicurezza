@@ -13,7 +13,6 @@ import time
 
 # --- 1. CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="Sicurezza & Cantieri | Guasti Gino", layout="wide")
-# Refresh globale per garantire aggiornamento UI
 st_autorefresh(interval=5000, key="datarefresh")
 
 # --- 2. SISTEMA DI LOGIN ---
@@ -42,9 +41,13 @@ DB_URL = "https://corsi-sicurezza-ggi-default-rtdb.europe-west1.firebasedatabase
 
 if not firebase_admin._apps:
     try:
-        key_dict = json.loads(st.secrets["firebase_json"])
-        cred = credentials.Certificate(key_dict)
-        firebase_admin.initialize_app(cred, {'databaseURL': DB_URL})
+        if "firebase_json" in st.secrets:
+            key_dict = json.loads(st.secrets["firebase_json"])
+            cred = credentials.Certificate(key_dict)
+            firebase_admin.initialize_app(cred, {'databaseURL': DB_URL})
+        else:
+            st.error("Errore: Credenziali Firebase non trovate nei Secrets.")
+            st.stop()
     except Exception as e:
         st.error(f"Errore connessione DB: {e}")
 
@@ -78,7 +81,6 @@ def esporta_excel(dati):
             "Data Scadenza": d.get('data_scadenza', '')
         })
     df = pd.DataFrame(lista_dati)
-    df = df[["Nominativo", "Corso", "Data Svolgimento", "Data Scadenza"]]
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Registro Corsi')
@@ -137,7 +139,7 @@ def invia_email_cantiere(cantiere, parte, data_scadenza):
         return "Inviato ✅"
     except Exception as e: return f"Errore: {e}"
 
-# --- 7. DIALOG PER ELIMINAZIONE ---
+# --- 7. DIALOG ---
 @st.dialog("Conferma eliminazione corso")
 def conferma_eliminazione(cid):
     st.write("Vuoi davvero eliminare questo corso?")
@@ -154,7 +156,7 @@ def conferma_eliminazione_rapporto(rid):
         st.rerun()
     if st.button("Annulla"): st.rerun()
 
-# --- 8. UI RENDER FUNCTIONS ---
+# --- 8. UI RENDER ---
 def render_registro():
     corsi = get_data('/corsi')
     c1, c2 = st.columns(2)
@@ -216,7 +218,9 @@ with st.sidebar:
         if st.button("Aggiungi"):
             if "@" in nuova_email: push_data('/destinatari', {"email": nuova_email})
     st.divider()
-    if st.button("🚀 Esegui Scansione", type="primary", use_container_width=True):
+    
+    # Aggiornamento parametri layout
+    if st.button("🚀 Esegui Scansione", type="primary", width='stretch'):
         status = st.status("Scansione...", expanded=True)
         oggi = datetime.today().date()
         soglia = oggi + timedelta(days=30)
@@ -233,16 +237,18 @@ with st.sidebar:
                 esito = invia_email_cantiere(dati.get('cantiere'), dati.get('parte'), dati.get('data_scadenza'))
                 if "Inviato" in esito: db.reference(f'/rapporti_cantiere/{rid}', url=DB_URL).update({'notifica_inviata': True})
         st.rerun()
-    if st.button("🔄 Reset Mail Inviate"):
+        
+    if st.button("🔄 Reset Mail Inviate", width='stretch'):
         corsi = get_data('/corsi')
         for cid in corsi: db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': False})
         rapporti = get_data('/rapporti_cantiere')
         for rid in rapporti: db.reference(f'/rapporti_cantiere/{rid}', url=DB_URL).update({'notifica_inviata': False})
         st.rerun()
     st.divider()
+    
     corsi_per_export = get_data('/corsi')
     if corsi_per_export:
-        st.download_button("📥 Esporta Excel", data=esporta_excel(corsi_per_export), file_name="Registro.xlsx", use_container_width=True)
+        st.download_button("📥 Esporta Excel", data=esporta_excel(corsi_per_export), file_name="Registro.xlsx", width='stretch')
 
 # --- MAIN ---
 st.title("Guasti Gino Impianti S.r.l.")
@@ -250,7 +256,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 Registro", "📊 Tabella", "➕ Co
 with tab1: render_registro()
 with tab2:
     corsi_matrice = get_data('/corsi')
-    if corsi_matrice: st.dataframe(pd.DataFrame.from_dict(corsi_matrice, orient='index'), use_container_width=True)
+    if corsi_matrice: st.dataframe(pd.DataFrame.from_dict(corsi_matrice, orient='index'), width='stretch')
 with tab3:
     nom_input = st.text_input("Dipendente")
     with st.form("form_corso_new"):
