@@ -14,20 +14,19 @@ import time
 # --- 1. CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="Sicurezza & Cantieri | Guasti Gino", layout="wide")
 
-# --- 2. LOGICA REFRESH CONDIZIONALE ---
-# Il refresh (sia automatico che manuale) viene disattivato se edit_cid è presente
+# MODIFICA: Il refresh si attiva SOLO se NON stiamo modificando un corso
 if 'edit_cid' not in st.session_state:
     st_autorefresh(interval=2000, key="datarefresh")
-    
-    if "last_manual_rerun" not in st.session_state:
-        st.session_state.last_manual_rerun = time.time()
-        
-    current_time = time.time()
-    if current_time - st.session_state.last_manual_rerun > 2:
-        st.session_state.last_manual_rerun = current_time
-        st.rerun()
 
-# --- 2.1 SISTEMA DI LOGIN ---
+# --- UTILITY DATA ---
+def to_ita(date_str):
+    """Converte YYYY-MM-DD in DD/MM/YYYY"""
+    try:
+        return datetime.strptime(date_str, "%Y-%m-%d").strftime("%d/%m/%Y")
+    except:
+        return date_str
+
+# --- 2. SISTEMA DI LOGIN ---
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
 
@@ -47,6 +46,17 @@ if not st.session_state.authenticated:
             else:
                 st.error("Username o Password errati")
     st.stop()
+
+# --- 2.5 FORZA RERUN OGNI 2 SECONDI (ISOLATO) ---
+if "last_manual_rerun" not in st.session_state:
+    st.session_state.last_manual_rerun = time.time()
+
+# LOGICA GATE: Esegue il rerun solo se NON c'è un dialog attivo
+if 'edit_cid' not in st.session_state:
+    current_time = time.time()
+    if current_time - st.session_state.last_manual_rerun > 2:
+        st.session_state.last_manual_rerun = current_time
+        st.rerun()
 
 # --- 3. CONNESSIONE A FIREBASE ---
 DB_URL = "https://corsi-sicurezza-ggi-default-rtdb.europe-west1.firebasedatabase.app/"
@@ -106,14 +116,6 @@ def esporta_excel(dati):
             column_len = max(df[col].astype(str).map(len).max(), len(col)) + 2
             worksheet.set_column(i, i, column_len)
     return output.getvalue()
-
-# --- UTILITY DATA ---
-def to_ita(date_str):
-    """Converte YYYY-MM-DD in DD/MM/YYYY"""
-    try:
-        return datetime.strptime(date_str, "%Y-%m-%d").strftime("%d/%m/%Y")
-    except:
-        return date_str
 
 # --- 6. LOGICA EMAIL ---
 def invia_email(nominativo, corso, data_scadenza):
@@ -197,6 +199,7 @@ def modifica_corso_dialog(cid, dati_corso):
             dati_aggiornati['notifica_inviata'] = False
         update_data('/corsi', cid, dati_aggiornati)
         
+        # Pulisce lo stato e chiude
         del st.session_state.edit_cid
         st.rerun()
         
@@ -206,6 +209,7 @@ def modifica_corso_dialog(cid, dati_corso):
 
 # --- 8. UI RENDER ---
 def render_registro():
+    # Se esiste un edit_cid nello stato, forza l'apertura del dialog
     if 'edit_cid' in st.session_state:
         corsi_tutti = get_data('/corsi')
         if st.session_state.edit_cid in corsi_tutti:
@@ -222,7 +226,7 @@ def render_registro():
             for cid, d in corsi.items()
         }
         
-        # MODIFICA: Aggiunta key per stabilità
+        # Aggiunta key univoca per stabilizzare il widget
         corso_selezionato_label = st.selectbox(
             "Seleziona corso da modificare:", 
             options=list(opzioni_mappa.keys()),
