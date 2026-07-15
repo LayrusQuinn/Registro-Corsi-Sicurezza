@@ -223,11 +223,19 @@ def render_registro():
             for cid, d in corsi.items()
         }
         
-        corso_selezionato_label = st.selectbox("Seleziona corso da modificare:", options=list(opzioni_mappa.keys()))
+        # MODIFICA: Placeholder aggiunto
+        corso_selezionato_label = st.selectbox(
+            "Seleziona corso da modificare:", 
+            options=list(opzioni_mappa.keys()),
+            index=None,
+            placeholder="Seleziona corso da modificare..."
+        )
         
-        if st.button("✏️ Modifica Corso Selezionato", use_container_width=True):
-            st.session_state.edit_cid = opzioni_mappa[corso_selezionato_label]
-            st.rerun()
+        # MODIFICA: Controllo per evitare selezione automatica
+        if corso_selezionato_label:
+            if st.button("✏️ Modifica Corso Selezionato", use_container_width=True):
+                st.session_state.edit_cid = opzioni_mappa[corso_selezionato_label]
+                st.rerun()
     
     st.divider()
     c1, c2 = st.columns(2)
