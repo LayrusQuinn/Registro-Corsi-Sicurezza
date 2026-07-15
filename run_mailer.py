@@ -7,6 +7,8 @@ from email.message import EmailMessage
 import firebase_admin
 from firebase_admin import credentials, db
 
+DB_URL = "https://corsi-sicurezza-ggi-default-rtdb.europe-west1.firebasedatabase.app/"
+
 def initialize_firebase():
     """Inizializzazione sicura di Firebase"""
     raw_json = os.environ.get('FIREBASE_JSON_CONTENT')
@@ -18,7 +20,7 @@ def initialize_firebase():
         cred_dict = json.loads(raw_json)
         cred = credentials.Certificate(cred_dict)
         firebase_admin.initialize_app(cred, {
-            'databaseURL': "https://corsi-sicurezza-ggi-default-rtdb.europe-west1.firebasedatabase.app/"
+            'databaseURL': DB_URL
         })
         print("Firebase inizializzato correttamente.")
     except Exception as e:
@@ -27,7 +29,7 @@ def initialize_firebase():
 
 def invia_email_a_tutti(nominativo, corso, data_scadenza):
     """Invia notifica a tutti gli indirizzi salvati in /destinatari"""
-    ref_dest = db.reference('/destinatari')
+    ref_dest = db.reference('/destinatari', url=DB_URL)
     dest_data = ref_dest.get()
     
     if not dest_data:
@@ -45,7 +47,7 @@ def invia_email_a_tutti(nominativo, corso, data_scadenza):
     msg['Subject'] = f"⚠️ Notifica Scadenza Formazione: {corso} - {nominativo}"
     msg['From'] = gmail_user
     msg['To'] = ", ".join(destinatari)
-    msg.set_content(f"Buongiorno,\n\nSi comunica che il corso '{corso}' per il dipendente {nominativo} scade il {data_ita}.\nSi prega di provvedere alle necessarie attività di rinnovo.\n\nCordiali saluti.")
+    msg.set_content(f"Buongiorno,\n\nSi comunica che il corso '{corso}' per il dipendente {nominativo} scade il {data_ita}.\nSi prega di provvedere alle necessarie attività di rinnovo.\n\nCordiali saluti")
     
     with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
         smtp.login(gmail_user, gmail_pass)
@@ -54,7 +56,7 @@ def invia_email_a_tutti(nominativo, corso, data_scadenza):
 
 def invia_email():
     print("Inizio scansione database...")
-    ref = db.reference('/corsi')
+    ref = db.reference('/corsi', url=DB_URL)
     corsi = ref.get()
     
     print(f"DEBUG: Dati letti da /corsi: {corsi}")
@@ -74,7 +76,7 @@ def invia_email():
             d_scad = datetime.strptime(info['data_scadenza'], '%Y-%m-%d')
             inviata = info.get('notifica_inviata', False)
             
-            # Condizione aggiornata: notifica se scade entro i 30 giorni, inclusi i già scaduti[cite: 1]
+            # Condizione aggiornata: notifica se scade entro i 30 giorni, inclusi i già scaduti
             in_range = (d_scad <= soglia)
             
             print(f"DEBUG: {info['corso']} | Scadenza: {d_scad.date()} | In range: {in_range} | Già inviata: {inviata}")
@@ -82,7 +84,8 @@ def invia_email():
             if in_range and not inviata:
                 print(f"AZIONE: Invio notifica per {info['corso']}...")
                 invia_email_a_tutti(info['nominativo'], info['corso'], info['data_scadenza'])
-                db.reference(f'/corsi/{cid}').update({'notifica_inviata': True})
+                db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True})
+                print(f"DEBUG: Flag 'notifica_inviata' aggiornato per {cid}")
             else:
                 print(f"SALTO: {info['corso']} non necessita di notifica.")
         else:
