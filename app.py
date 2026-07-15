@@ -242,10 +242,13 @@ with st.sidebar:
 
             if aggiornato:
                 status.update(label="Scansione completata!", state="complete", expanded=False)
-                force_refresh()
                 st.success("Notifiche inviate e database aggiornato.")
-                time.sleep(1)
-                st.rerun()
+                
+                # --- SEQUENZA DI HARD REFRESH ---
+                st.cache_data.clear()      # Pulisce la memoria cache
+                force_refresh()            # Forza il cambio versione per get_data
+                time.sleep(2)              # Attende la sincronizzazione Firebase
+                st.rerun()                 # Ricarica l'intera app
             else:
                 status.update(label="Scansione terminata.", state="complete", expanded=False)
                 st.info(f"Analizzati {contatore_corsi} corsi e {contatore_cantieri} cantieri. Nessuna nuova scadenza trovata.")
@@ -260,6 +263,8 @@ with st.sidebar:
         rapporti = get_data('/rapporti_cantiere', st.session_state.db_version)
         if rapporti:
             for rid in rapporti: db.reference(f'/rapporti_cantiere/{rid}', url=DB_URL).update({'notifica_inviata': False})
+        
+        st.cache_data.clear()
         force_refresh()
         st.rerun() 
     
