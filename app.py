@@ -48,6 +48,7 @@ if not firebase_admin._apps:
         st.error(f"Errore connessione DB: {e}") 
 
 # --- 4. FUNZIONI DI DATABASE --- 
+@st.cache_data(ttl=5) # TTL di 5 secondi per garantire dati sempre freschi
 def get_data(path): 
     try: 
         dati = db.reference(path, url=DB_URL).get() 
@@ -257,7 +258,6 @@ opzioni_corsi = ["Preposto", "RLS", "Primo Soccorso", "Antincendio",
 "Altro"] 
 
 with tab1: 
-    st.cache_data.clear() # Fix refresh
     corsi = get_data('/corsi') 
     c1, c2 = st.columns(2) 
     search = c1.text_input("🔍 Cerca") 
@@ -409,7 +409,6 @@ with tab4:
 
 with tab5:
     st.subheader("🏗️ Scadenziario Consegne Cantieri")
-    st.cache_data.clear() # Fix refresh
     rapporti = get_data('/rapporti_cantiere')
      
     c3_1, c3_2 = st.columns(2)
