@@ -36,7 +36,7 @@ if not st.session_state.authenticated:
                 st.error("Username o Password errati")
     st.stop()
 
-# --- FIX: Intervallo di refresh impostato a 5 minuti (300000ms) ---
+# --- Refresh ogni 5 minuti (300000ms) ---
 st_autorefresh(interval=300000, key="datarefresh")
 
 # --- 3. CONNESSIONE A FIREBASE (SICURA) ---
@@ -153,18 +153,7 @@ def invia_email_cantiere(cantiere, parte, data_scadenza):
         return "Inviato ✅"
     except Exception as e: return f"Errore: {e}"
 
-# --- 7. DIALOG ---
-@st.dialog("Modifica Corso")
-def modifica_corso_dialog(cid, info):
-    with st.form("form_modifica"):
-        st.write(f"Modifica dati per: **{info.get('nominativo')}**")
-        data_s = st.date_input("Data Svolgimento", value=datetime.strptime(info.get('data_svolto', '2026-01-01'), "%Y-%m-%d"))
-        data_scad = st.date_input("Data Scadenza", value=datetime.strptime(info.get('data_scadenza', '2026-01-01'), "%Y-%m-%d"))
-        if st.form_submit_button("💾 Salva Modifiche"):
-            aggiorna_corso(cid, str(data_s), str(data_scad))
-            st.success("Aggiornato!")
-            st.rerun()
-
+# --- 7. DIALOG / RENDER ---
 @st.dialog("Conferma eliminazione corso")
 def conferma_eliminazione(cid):
     st.write("Vuoi davvero eliminare questo corso?")
@@ -181,7 +170,6 @@ def conferma_eliminazione_rapporto(rid):
         st.rerun()
     if st.button("Annulla"): st.rerun()
 
-# --- 8. UI RENDER ---
 def render_registro():
     corsi = get_data('/corsi')
     c1, c2 = st.columns(2)
@@ -200,15 +188,34 @@ def render_registro():
                 
                 if (search.lower() in d.get('nominativo', '').lower()) and (filtro_stato == "Tutti" or filtro_stato == stato):
                     with st.container(border=True):
-                        cols = st.columns([2, 2, 1, 1, 1, 0.5, 0.5])
+                        # Colonna pulsanti edit rimossa
+                        cols = st.columns([2, 2, 1, 1, 1, 0.5])
                         cols[0].markdown(f":{colore}[{d.get('nominativo')}]")
                         cols[1].markdown(f":{colore}[{d.get('corso')}]")
                         cols[2].markdown(f":{colore}[{d.get('data_svolto')}]")
                         cols[3].markdown(f":{colore}[{d.get('data_scadenza')}]")
                         cols[4].markdown(f":{colore}[**{stato}**]")
-                        if cols[5].button("✏️", key=f"edit_{cid}"): modifica_corso_dialog(cid, d)
-                        if cols[6].button("🗑️", key=f"del_{cid}"): conferma_eliminazione(cid)
+                        if cols[5].button("🗑️", key=f"del_{cid}"): conferma_eliminazione(cid)
             except: continue
+
+def render_modifica():
+    corsi = get_data('/corsi')
+    if not corsi:
+        st.write("Nessun corso presente.")
+        return
+    
+    options = {cid: f"{d.get('nominativo')} - {d.get('corso')} (Scad: {d.get('data_scadenza')})" for cid, d in corsi.items()}
+    selected_cid = st.selectbox("Seleziona il corso da modificare", options=list(options.keys()), format_func=lambda x: options[x])
+    
+    if selected_cid:
+        d = corsi[selected_cid]
+        with st.form("form_modifica_tab"):
+            data_s = st.date_input("Nuova Data Svolgimento", value=datetime.strptime(d.get('data_svolto', '2026-01-01'), "%Y-%m-%d"))
+            data_scad = st.date_input("Nuova Data Scadenza", value=datetime.strptime(d.get('data_scadenza', '2026-01-01'), "%Y-%m-%d"))
+            if st.form_submit_button("💾 Salva Modifiche"):
+                aggiorna_corso(selected_cid, str(data_s), str(data_scad))
+                st.success("Aggiornato!")
+                st.rerun()
 
 def render_cantieri():
     rapporti = get_data('/rapporti_cantiere')
@@ -277,12 +284,13 @@ with st.sidebar:
 
 # --- MAIN ---
 st.title("Guasti Gino Impianti S.r.l.")
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 Registro", "📊 Tabella", "➕ Corso", "⏳ Nuova Scadenza", "🏗️ Cantieri"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📋 Registro", "📊 Tabella", "✏️ Modifica", "➕ Corso", "⏳ Nuova Scadenza", "🏗️ Cantieri"])
 with tab1: render_registro()
 with tab2:
     corsi_matrice = get_data('/corsi')
     if corsi_matrice: st.dataframe(pd.DataFrame.from_dict(corsi_matrice, orient='index'), use_container_width=True)
-with tab3:
+with tab3: render_modifica()
+with tab4:
     nom_input = st.text_input("Dipendente")
     with st.form("form_corso_new"):
         corso_add = st.selectbox("Corso", ["Preposto", "RLS", "Antincendio", "PLE", "Muletto", "Altro"])
@@ -291,11 +299,11 @@ with tab3:
         if st.form_submit_button("💾 Salva"):
             scadenza = data_s.replace(year=data_s.year + val)
             push_data('/corsi', {"nominativo": nom_input, "corso": corso_add, "data_svolto": str(data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
-with tab4:
+with tab5:
     with st.form("form_cantiere"):
         nome_cantiere = st.text_input("Cantiere")
         parte_cantiere = st.text_input("Parte")
         data_scadenza = st.date_input("Data Scadenza")
         if st.form_submit_button("💾 Salva"):
             push_data('/rapporti_cantiere', {"cantiere": nome_cantiere, "parte": parte_cantiere, "data_scadenza": str(data_scadenza), "notifica_inviata": False})
-with tab5: render_cantieri()
+with tab6: render_cantieri()
