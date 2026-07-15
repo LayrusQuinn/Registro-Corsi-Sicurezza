@@ -23,11 +23,9 @@ def to_ita(date_str):
     except:
         return date_str
 
-# --- 2. SISTEMA DI LOGIN & STATO ---
+# --- 2. SISTEMA DI LOGIN ---
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
-if 'is_editing' not in st.session_state:
-    st.session_state.is_editing = False
 
 if st.query_params.get("logged_in") == "true":
     st.session_state.authenticated = True
@@ -50,9 +48,9 @@ if not st.session_state.authenticated:
 if "last_manual_rerun" not in st.session_state:
     st.session_state.last_manual_rerun = time.time()
 
-current_time = time.time()
-# La logica di Rerun viene eseguita solo se NON stiamo editando un corso
-if not st.session_state.is_editing:
+# LOGICA GATE: Esegue il rerun solo se NON c'è un dialog attivo
+if 'edit_cid' not in st.session_state:
+    current_time = time.time()
     if current_time - st.session_state.last_manual_rerun > 2:
         st.session_state.last_manual_rerun = current_time
         st.rerun()
@@ -197,16 +195,25 @@ def modifica_corso_dialog(cid, dati_corso):
         if reset_notifica:
             dati_aggiornati['notifica_inviata'] = False
         update_data('/corsi', cid, dati_aggiornati)
-        # Una volta aggiornato, riattiviamo il refresh
-        st.session_state.is_editing = False
+        
+        # Pulisce lo stato e chiude
+        del st.session_state.edit_cid
         st.rerun()
         
     if col2.button("❌ Chiudi", use_container_width=True):
-        st.session_state.is_editing = False
+        del st.session_state.edit_cid
         st.rerun()
 
 # --- 8. UI RENDER ---
 def render_registro():
+    # Se esiste un edit_cid nello stato, forza l'apertura del dialog
+    if 'edit_cid' in st.session_state:
+        corsi_tutti = get_data('/corsi')
+        if st.session_state.edit_cid in corsi_tutti:
+            modifica_corso_dialog(st.session_state.edit_cid, corsi_tutti[st.session_state.edit_cid])
+        else:
+            del st.session_state.edit_cid
+
     corsi = get_data('/corsi')
     st.subheader("📝 Modifica Corsi")
     
@@ -219,9 +226,8 @@ def render_registro():
         corso_selezionato_label = st.selectbox("Seleziona corso da modificare:", options=list(opzioni_mappa.keys()))
         
         if st.button("✏️ Modifica Corso Selezionato", use_container_width=True):
-            cid_scelto = opzioni_mappa[corso_selezionato_label]
-            st.session_state.is_editing = True # Blocca il refresh
-            modifica_corso_dialog(cid_scelto, corsi[cid_scelto])
+            st.session_state.edit_cid = opzioni_mappa[corso_selezionato_label]
+            st.rerun()
     
     st.divider()
     c1, c2 = st.columns(2)
