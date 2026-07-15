@@ -203,52 +203,48 @@ with st.sidebar:
                 st.rerun() 
     st.divider() 
     
-    # --- MODIFICA MIRATA: Esecuzione Scansione ---
+    # --- MODIFICA APPLICATA ---
     if st.button("🚀 Esegui Scansione", type="primary", use_container_width=True): 
-        with st.spinner("Scansione in corso..."):
+        with st.spinner("Scansione in corso e sincronizzazione database..."):
             oggi = datetime.today().date() 
             soglia = oggi + timedelta(days=30) 
             aggiornato = False
             
-            # Lettura DIRETTA da DB per evitare cache
+            # Scansione Corsi (Accesso Diretto)
             corsi = db.reference('/corsi', url=DB_URL).get() 
             if corsi: 
-                st.write(f"Scansione {len(corsi)} corsi...")
                 for cid, dati in corsi.items(): 
                     try: 
                         d_scad = datetime.strptime(dati.get('data_scadenza', '2000-01-01'), "%Y-%m-%d").date() 
                         if d_scad <= soglia and not dati.get('notifica_inviata', False): 
-                            st.write(f"Inviando: {dati.get('nominativo')} ({dati.get('corso')})")
-                            invia_email(dati.get('nominativo'), dati.get('corso'), dati.get('data_scadenza')) 
-                            db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True}) 
-                            aggiornato = True
-                    except Exception as e: 
-                        st.error(f"Errore {cid}: {e}")
-                        continue 
-                     
+                            esito = invia_email(dati.get('nominativo'), dati.get('corso'), dati.get('data_scadenza'))
+                            if "Inviato" in esito:
+                                db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True}) 
+                                st.write(f"✅ Notifica inviata: {dati.get('nominativo')}")
+                                aggiornato = True
+                    except Exception as e: st.error(f"Errore corso {cid}: {e}")
+            
+            # Scansione Rapporti (Accesso Diretto)
             rapporti = db.reference('/rapporti_cantiere', url=DB_URL).get()
             if rapporti:
-                st.write(f"Scansione {len(rapporti)} rapporti...")
                 for rid, dati in rapporti.items():
                     try:
                         d_scad = datetime.strptime(dati.get('data_scadenza', '2000-01-01'), "%Y-%m-%d").date()
                         if d_scad <= soglia and not dati.get('notifica_inviata', False):
-                            st.write(f"Inviando: {dati.get('cantiere')} ({dati.get('parte')})")
-                            invia_email_cantiere(dati.get('cantiere'), dati.get('parte'), dati.get('data_scadenza'))
-                            db.reference(f'/rapporti_cantiere/{rid}', url=DB_URL).update({'notifica_inviata': True}) 
-                            aggiornato = True
-                    except Exception as e: 
-                        st.error(f"Errore {rid}: {e}")
-                        continue
+                            esito = invia_email_cantiere(dati.get('cantiere'), dati.get('parte'), dati.get('data_scadenza'))
+                            if "Inviato" in esito:
+                                db.reference(f'/rapporti_cantiere/{rid}', url=DB_URL).update({'notifica_inviata': True}) 
+                                st.write(f"✅ Notifica cantiere: {dati.get('cantiere')}")
+                                aggiornato = True
+                    except Exception as e: st.error(f"Errore rapporto {rid}: {e}")
             
             if aggiornato:
-                st.success("Scansione completata. Aggiornamento in corso...")
-                st.cache_data.clear()
-                time.sleep(1)
+                st.success("Operazione completata. Aggiornamento interfaccia...")
+                st.cache_data.clear() # Pulisce cache forzando rilettura
+                time.sleep(3) # Pausa di sicurezza per sincronizzazione Firebase
                 st.rerun() 
             else:
-                st.info("Nessuna scadenza trovata da notificare.")
-    # ----------------------------------------------
+                st.info("Nessuna nuova scadenza trovata.")
          
     if st.button("🔄 Reset Mail Inviate"): 
         corsi = get_data('/corsi') 
