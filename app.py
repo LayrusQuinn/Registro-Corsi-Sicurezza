@@ -181,10 +181,10 @@ def modifica_corso_dialog(cid, dati_corso):
     data_scad_dt = datetime.strptime(dati_corso.get('data_scadenza'), "%Y-%m-%d")
     data_svolto_dt = datetime.strptime(dati_corso.get('data_svolto'), "%Y-%m-%d")
     
-    # Input nuove date
-    nuova_data_svolto = st.date_input("📅 Data Svolgimento:", value=data_svolto_dt, format="DD/MM/YYYY")
-    nuova_data_scadenza = st.date_input("📅 Nuova data scadenza:", value=data_scad_dt, format="DD/MM/YYYY")
-    reset_notifica = st.checkbox("🔄 Reset notifica inviata (torna a 🟢 IN CORSO)")
+    # Input nuove date con KEY univoche per gestire correttamente lo stato in Streamlit
+    nuova_data_svolto = st.date_input("📅 Data Svolgimento:", value=data_svolto_dt, format="DD/MM/YYYY", key="mod_data_svolto")
+    nuova_data_scadenza = st.date_input("📅 Nuova data scadenza:", value=data_scad_dt, format="DD/MM/YYYY", key="mod_data_scadenza")
+    reset_notifica = st.checkbox("🔄 Reset notifica inviata (torna a 🟢 IN CORSO)", key="mod_reset_notifica")
     
     if st.button("✅ Conferma Modifiche", use_container_width=True):
         dati_aggiornati = {
@@ -193,9 +193,8 @@ def modifica_corso_dialog(cid, dati_corso):
         }
         if reset_notifica:
             dati_aggiornati['notifica_inviata'] = False
+        
         update_data('/corsi', cid, dati_aggiornati)
-        st.success("Corso modificato con successo!")
-        st.rerun()
 
 # --- 8. UI RENDER ---
 def render_registro():
@@ -203,7 +202,7 @@ def render_registro():
     st.subheader("📝 Modifica Corsi")
     
     if corsi:
-        # MAPPA ETICHETTA -> ID (Correzione implementata)
+        # Mappa Etichetta -> ID per la selectbox
         opzioni_mappa = {
             f"{d.get('nominativo')} - {d.get('corso')} (Scade: {to_ita(d.get('data_scadenza'))})": cid 
             for cid, d in corsi.items()
