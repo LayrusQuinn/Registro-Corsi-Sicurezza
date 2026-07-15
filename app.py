@@ -201,11 +201,18 @@ def modifica_corso_dialog(cid, dati_corso):
 def render_registro():
     corsi = get_data('/corsi')
     st.subheader("📝 Modifica Corsi")
+    
     if corsi:
-        opzioni_corsi = {cid: f"{d.get('nominativo')} - {d.get('corso')} (Scade: {to_ita(d.get('data_scadenza'))})" for cid, d in corsi.items()}
-        corso_selezionato = st.selectbox("Seleziona corso da modificare:", options=list(opzioni_corsi.keys()))
+        # MAPPA ETICHETTA -> ID (Correzione implementata)
+        opzioni_mappa = {
+            f"{d.get('nominativo')} - {d.get('corso')} (Scade: {to_ita(d.get('data_scadenza'))})": cid 
+            for cid, d in corsi.items()
+        }
+        
+        corso_selezionato_label = st.selectbox("Seleziona corso da modificare:", options=list(opzioni_mappa.keys()))
+        
         if st.button("✏️ Modifica Corso Selezionato", use_container_width=True):
-            cid_scelto = [k for k, v in opzioni_corsi.items() if v == corso_selezionato][0]
+            cid_scelto = opzioni_mappa[corso_selezionato_label]
             modifica_corso_dialog(cid_scelto, corsi[cid_scelto])
     
     st.divider()
