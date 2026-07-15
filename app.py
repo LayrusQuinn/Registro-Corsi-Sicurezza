@@ -221,14 +221,13 @@ def render_registro():
     st.subheader("📝 Modifica Corsi")
     
     if corsi:
-        # Creiamo un dizionario per la visualizzazione, ma usiamo i CID come chiavi/valori reali
         opzioni_mappa = {
             cid: f"{d.get('nominativo')} - {d.get('corso')} (Scade: {to_ita(d.get('data_scadenza'))})"
             for cid, d in corsi.items()
         }
         
-        # Usiamo il CID (chiave) come valore del widget, non la stringa
-        cid_selezionato = st.selectbox(
+        # Widget univoco
+        st.selectbox(
             "Seleziona corso da modificare:", 
             options=list(opzioni_mappa.keys()),
             format_func=lambda cid: opzioni_mappa[cid],
@@ -237,10 +236,12 @@ def render_registro():
             key="seleziona_corso_modifica"
         )
         
-        # Il pulsante ora dipende dal CID, che è stabile anche se il testo cambia
-        if cid_selezionato:
+        # Controllo STRETTO sullo stato (non sul widget)
+        # Se c'è una selezione valida nel session_state, il pulsante DEVE esserci
+        current_selection = st.session_state.get("seleziona_corso_modifica")
+        if current_selection:
             if st.button("✏️ Modifica Corso Selezionato", use_container_width=True):
-                st.session_state.edit_cid = cid_selezionato
+                st.session_state.edit_cid = current_selection
                 st.rerun()
     
     st.divider()
