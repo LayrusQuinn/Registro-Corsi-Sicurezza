@@ -48,7 +48,7 @@ if not firebase_admin._apps:
         st.error(f"Errore connessione DB: {e}") 
 
 # --- 4. FUNZIONI DI DATABASE --- 
-@st.cache_data(ttl=5) # TTL di 5 secondi per garantire dati sempre freschi
+@st.cache_data(ttl=5) 
 def get_data(path): 
     try: 
         dati = db.reference(path, url=DB_URL).get() 
@@ -146,6 +146,7 @@ def conferma_eliminazione(cid):
     col_si, col_no = st.columns(2) 
     if col_si.button("Sì, elimina corso"): 
         delete_data('/corsi', cid) 
+        st.cache_data.clear()
         st.rerun() 
     if col_no.button("Annulla"): 
         st.rerun() 
@@ -156,6 +157,7 @@ def conferma_eliminazione_rapporto(rid):
     col_si, col_no = st.columns(2)
     if col_si.button("Sì, elimina scadenza"):
         delete_data('/rapporti_cantiere', rid)
+        st.cache_data.clear()
         st.rerun()
     if col_no.button("Annulla"):
         st.rerun()
@@ -164,13 +166,11 @@ def conferma_eliminazione_rapporto(rid):
 st.title("Guasti Gino Impianti S.r.l.") 
 
 with st.sidebar: 
-    # --- Modifica Refresh Automatico ---
     st.header("🔄 Aggiornamento")
     auto_refresh = st.toggle("Abilita aggiornamento auto", value=True)
     if auto_refresh:
         st_autorefresh(interval=60000, key="datarefresh")
     st.divider()
-    # -----------------------------------
 
     if st.button("🚪 Logout"): 
         st.session_state.authenticated = False 
@@ -184,6 +184,7 @@ with st.sidebar:
             if st.form_submit_button("Salva Credenziali"): 
                 set_data('/config/email_mittente', email_mit) 
                 set_data('/config/password_mittente', pass_mit) 
+                st.cache_data.clear()
                 st.rerun() 
     with st.expander("👥 Destinatari"): 
         dest_attuali = get_data('/destinatari') 
@@ -192,16 +193,21 @@ with st.sidebar:
             col1.write(d_dati.get('email', '')) 
             if col2.button("🗑️", key=f"del_{d_id}"): 
                 delete_data('/destinatari', d_id) 
+                st.cache_data.clear()
                 st.rerun() 
         nuova_email = st.text_input("Aggiungi email:") 
         if st.button("Aggiungi"): 
             if "@" in nuova_email: 
                 push_data('/destinatari', {"email": nuova_email}) 
+                st.cache_data.clear()
                 st.rerun() 
     st.divider() 
+    
+    # --- BLOCCO AGGIORNATO CON PULIZIA CACHE ---
     if st.button("🚀 Esegui Scansione", type="primary", use_container_width=True): 
         oggi = datetime.today().date() 
         soglia = oggi + timedelta(days=30) 
+        aggiornato = False
          
         # Scansione Scadenze Corsi
         corsi = get_data('/corsi') 
@@ -212,6 +218,7 @@ with st.sidebar:
                     if d_scad <= soglia and not dati.get('notifica_inviata', False): 
                         invia_email(dati.get('nominativo'), dati.get('corso'), dati.get('data_scadenza')) 
                         db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True}) 
+                        aggiornato = True
                 except: continue 
                  
         # Scansione Scadenze Cantieri
@@ -223,7 +230,11 @@ with st.sidebar:
                     if d_scad <= soglia and not dati.get('notifica_inviata', False):
                         invia_email_cantiere(dati.get('cantiere'), dati.get('parte'), dati.get('data_scadenza'))
                         db.reference(f'/rapporti_cantiere/{rid}', url=DB_URL).update({'notifica_inviata': True})
+                        aggiornato = True
                 except: continue
+        
+        if aggiornato:
+            st.cache_data.clear()
         st.rerun() 
          
     if st.button("🔄 Reset Mail Inviate"): 
@@ -235,6 +246,7 @@ with st.sidebar:
         if rapporti:
             for rid, dati in rapporti.items():
                 db.reference(f'/rapporti_cantiere/{rid}', url=DB_URL).update({'notifica_inviata': False})
+        st.cache_data.clear()
         st.rerun() 
     st.divider() 
     corsi_per_export = get_data('/corsi') 
@@ -277,6 +289,7 @@ with tab1:
                 with st.form(f"form_modifica_{cid_da_mod}"): 
                     if st.form_submit_button("Salva Modifiche"): 
                         db.reference(f'/corsi/{cid_da_mod}', url=DB_URL).update({"nominativo": new_nom, "corso": new_corso, "data_svolto": str(new_data)}) 
+                        st.cache_data.clear()
                         st.rerun() 
 
     st.divider() 
@@ -306,7 +319,6 @@ with tab2:
     st.write("Visualizzazione in tempo reale dello stato di formazione di tutto il personale.")
     
     def colora_matrice(val):
-        """Assegna i colori alle celle della matrice in base alla data di scadenza."""
         if val == "-" or pd.isna(val):
             return 'background-color: #f8f9fa; color: #adb5bd; text-align: center;'
         try:
@@ -384,6 +396,7 @@ with tab3:
             scadenza = data_s.replace(year=data_s.year + val) 
             push_data('/corsi', {"nominativo": st.session_state.nom_dipendente, "corso": corso_add, "data_svolto": str(data_s), "data_scadenza": str(scadenza), "notifica_inviata": False}) 
             st.session_state.form_key += 1 
+            st.cache_data.clear()
             st.rerun() 
 
 with tab4:
@@ -403,6 +416,7 @@ with tab4:
                 }
                 push_data('/rapporti_cantiere', nuova_scadenza)
                 st.success("Scadenza cantiere memorizzata correttamente!")
+                st.cache_data.clear()
                 st.rerun()
             else:
                 st.error("Compila tutti i campi obbligatori (Cantiere e Parte di Cantiere)")
