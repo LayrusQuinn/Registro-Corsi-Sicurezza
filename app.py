@@ -1,4 +1,5 @@
 import streamlit as st 
+from streamlit_autorefresh import st_autorefresh
 import firebase_admin 
 from firebase_admin import credentials, db 
 import json 
@@ -162,6 +163,14 @@ def conferma_eliminazione_rapporto(rid):
 st.title("Guasti Gino Impianti S.r.l.") 
 
 with st.sidebar: 
+    # --- Modifica Refresh Automatico ---
+    st.header("🔄 Aggiornamento")
+    auto_refresh = st.toggle("Abilita aggiornamento auto", value=True)
+    if auto_refresh:
+        st_autorefresh(interval=60000, key="datarefresh")
+    st.divider()
+    # -----------------------------------
+
     if st.button("🚪 Logout"): 
         st.session_state.authenticated = False 
         st.query_params.clear() 
@@ -230,9 +239,9 @@ with st.sidebar:
     corsi_per_export = get_data('/corsi') 
     if corsi_per_export: 
         st.download_button("📥 Esporta Excel", 
-                           data=esporta_excel(corsi_per_export), file_name="Registro.xlsx", 
-                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-                           use_container_width=True) 
+                            data=esporta_excel(corsi_per_export), file_name="Registro.xlsx", 
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+                            use_container_width=True) 
 
 # --- MAIN --- 
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
