@@ -179,10 +179,16 @@ def render_registro():
                 d_scad = datetime.strptime(d['data_scadenza'], "%Y-%m-%d").date()
                 oggi = datetime.today().date()
                 soglia = oggi + timedelta(days=30)
-                if d_scad < oggi: stato, colore = "🔴 SCADUTO", "red"
-                elif d_scad <= soglia: stato, colore = "⚠️ IN SCADENZA", "orange"
-                elif d.get('notifica_inviata', False): stato, colore = "✅ Mail inviata", "green"
-                else: stato, colore = "🟢 IN CORSO", "blue"
+                
+                # ORDINE CORRETTO: controlla mail inviata PRIMA di controllare lo stato di scadenza
+                if d.get('notifica_inviata', False): 
+                    stato, colore = "✅ Mail inviata", "green"
+                elif d_scad < oggi: 
+                    stato, colore = "🔴 SCADUTO", "red"
+                elif d_scad <= soglia: 
+                    stato, colore = "⚠️ IN SCADENZA", "orange"
+                else: 
+                    stato, colore = "🟢 IN CORSO", "blue"
                 
                 if (search.lower() in d.get('nominativo', '').lower()) and (filtro_stato == "Tutti" or filtro_stato == stato):
                     with st.container(border=True):
