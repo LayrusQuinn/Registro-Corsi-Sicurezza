@@ -257,6 +257,7 @@ opzioni_corsi = ["Preposto", "RLS", "Primo Soccorso", "Antincendio",
 "Altro"] 
 
 with tab1: 
+    st.cache_data.clear() # Fix refresh
     corsi = get_data('/corsi') 
     c1, c2 = st.columns(2) 
     search = c1.text_input("🔍 Cerca") 
@@ -355,7 +356,6 @@ with tab2:
         col_l4.markdown("⬜ **Grigio**: Mai effettuato / Mancante")
         st.divider()
         
-        # Gestione compatibilità versioni Pandas (.style.map vs .style.applymap)
         try:
             matrice_stilizzata = matrice_df.style.map(colora_matrice)
         except AttributeError:
@@ -409,6 +409,7 @@ with tab4:
 
 with tab5:
     st.subheader("🏗️ Scadenziario Consegne Cantieri")
+    st.cache_data.clear() # Fix refresh
     rapporti = get_data('/rapporti_cantiere')
      
     c3_1, c3_2 = st.columns(2)
