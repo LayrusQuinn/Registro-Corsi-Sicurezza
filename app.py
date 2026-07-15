@@ -203,14 +203,14 @@ with st.sidebar:
                 st.rerun() 
     st.divider() 
     
-    # --- MODIFICA APPLICATA ---
+    # --- MODIFICA AGGIORNATA: Forzatura Refresh UI ---
     if st.button("🚀 Esegui Scansione", type="primary", use_container_width=True): 
-        with st.spinner("Scansione in corso e sincronizzazione database..."):
+        with st.spinner("Scansione in corso..."):
             oggi = datetime.today().date() 
             soglia = oggi + timedelta(days=30) 
             aggiornato = False
             
-            # Scansione Corsi (Accesso Diretto)
+            # Scansione Corsi
             corsi = db.reference('/corsi', url=DB_URL).get() 
             if corsi: 
                 for cid, dati in corsi.items(): 
@@ -220,11 +220,11 @@ with st.sidebar:
                             esito = invia_email(dati.get('nominativo'), dati.get('corso'), dati.get('data_scadenza'))
                             if "Inviato" in esito:
                                 db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True}) 
-                                st.write(f"✅ Notifica inviata: {dati.get('nominativo')}")
+                                st.write(f"✅ Inviato: {dati.get('nominativo')}")
                                 aggiornato = True
                     except Exception as e: st.error(f"Errore corso {cid}: {e}")
             
-            # Scansione Rapporti (Accesso Diretto)
+            # Scansione Rapporti
             rapporti = db.reference('/rapporti_cantiere', url=DB_URL).get()
             if rapporti:
                 for rid, dati in rapporti.items():
@@ -234,14 +234,16 @@ with st.sidebar:
                             esito = invia_email_cantiere(dati.get('cantiere'), dati.get('parte'), dati.get('data_scadenza'))
                             if "Inviato" in esito:
                                 db.reference(f'/rapporti_cantiere/{rid}', url=DB_URL).update({'notifica_inviata': True}) 
-                                st.write(f"✅ Notifica cantiere: {dati.get('cantiere')}")
+                                st.write(f"✅ Inviato: {dati.get('cantiere')}")
                                 aggiornato = True
                     except Exception as e: st.error(f"Errore rapporto {rid}: {e}")
             
             if aggiornato:
-                st.success("Operazione completata. Aggiornamento interfaccia...")
-                st.cache_data.clear() # Pulisce cache forzando rilettura
-                time.sleep(3) # Pausa di sicurezza per sincronizzazione Firebase
+                st.success("Operazione completata.")
+                st.cache_data.clear() # Pulisce cache
+                # TRUCCO: Forza un reload completo dell'URL per bypassare la cache browser/streamlit
+                st.query_params["force_refresh"] = str(time.time())
+                time.sleep(1)
                 st.rerun() 
             else:
                 st.info("Nessuna nuova scadenza trovata.")
