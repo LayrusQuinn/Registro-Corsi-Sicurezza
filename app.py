@@ -203,7 +203,7 @@ with st.sidebar:
                 st.rerun() 
     st.divider() 
     
-    # --- BLOCCO AGGIORNATO CON PULIZIA CACHE ---
+    # --- BLOCCO AGGIORNATO CON ATTESA SINCRONIZZAZIONE ---
     if st.button("🚀 Esegui Scansione", type="primary", use_container_width=True): 
         oggi = datetime.today().date() 
         soglia = oggi + timedelta(days=30) 
@@ -229,12 +229,13 @@ with st.sidebar:
                     d_scad = datetime.strptime(dati.get('data_scadenza', '2000-01-01'), "%Y-%m-%d").date()
                     if d_scad <= soglia and not dati.get('notifica_inviata', False):
                         invia_email_cantiere(dati.get('cantiere'), dati.get('parte'), dati.get('data_scadenza'))
-                        db.reference(f'/rapporti_cantiere/{rid}', url=DB_URL).update({'notifica_inviata': True})
+                        db.reference(f'/rapporti_cantiere/{rid}', url=DB_URL).update({'notifica_inviata': True}) 
                         aggiornato = True
                 except: continue
         
         if aggiornato:
             st.cache_data.clear()
+            time.sleep(1) # Attesa per sincronizzazione Firebase
         st.rerun() 
          
     if st.button("🔄 Reset Mail Inviate"): 
