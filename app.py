@@ -16,7 +16,7 @@ st.set_page_config(page_title="Sicurezza & Cantieri | Guasti Gino", layout="wide
 
 # MODIFICA: Il refresh si attiva SOLO se NON stiamo modificando un corso
 if 'edit_cid' not in st.session_state:
-    st_autorefresh(interval=2000, key="datarefresh")
+    st_autorefresh(interval=300000, key="datarefresh")
 
 # --- UTILITY DATA ---
 def to_ita(date_str):
@@ -47,14 +47,14 @@ if not st.session_state.authenticated:
                 st.error("Username o Password errati")
     st.stop()
 
-# --- 2.5 FORZA RERUN OGNI 2 SECONDI (ISOLATO) ---
+# --- 2.5 FORZA RERUN OGNI 5 MINUTI (ISOLATO) ---
 if "last_manual_rerun" not in st.session_state:
     st.session_state.last_manual_rerun = time.time()
 
 # LOGICA GATE: Esegue il rerun solo se NON c'è un dialog attivo
 if 'edit_cid' not in st.session_state:
     current_time = time.time()
-    if current_time - st.session_state.last_manual_rerun > 2:
+    if current_time - st.session_state.last_manual_rerun > 300:
         st.session_state.last_manual_rerun = current_time
         st.rerun()
 
