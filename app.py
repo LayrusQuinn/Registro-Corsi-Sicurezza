@@ -8,21 +8,19 @@ from datetime import datetime, timedelta
 import smtplib 
 from email.mime.text import MIMEText 
 from email.mime.multipart import MIMEMultipart 
-import os 
-import time 
 import io 
+import time
 
 # --- 1. CONFIGURAZIONE PAGINA --- 
 st.set_page_config(page_title="Sicurezza & Cantieri | Guasti Gino", layout="wide") 
 
-# --- 2. SISTEMA DI LOGIN --- 
+# --- 2. SISTEMA DI LOGIN & STATE --- 
 if 'authenticated' not in st.session_state: 
     st.session_state.authenticated = False 
 if 'db_version' not in st.session_state: 
-    st.session_state.db_version = 0 # Variabile per il cache-busting
+    st.session_state.db_version = 0 
 
 def force_refresh():
-    """Incrementa la versione per forzare il ricaricamento dei dati"""
     st.session_state.db_version += 1
 
 if st.query_params.get("logged_in") == "true": 
@@ -204,39 +202,56 @@ with st.sidebar:
     st.divider() 
     
     if st.button("🚀 Esegui Scansione", type="primary", use_container_width=True): 
-        with st.spinner("Scansione in corso..."):
-            oggi = datetime.today().date() 
-            soglia = oggi + timedelta(days=30) 
-            aggiornato = False
-            
+        status = st.status("Scansione in corso...", expanded=True)
+        oggi = datetime.today().date() 
+        soglia = oggi + timedelta(days=30) 
+        aggiornato = False
+        contatore_corsi = 0
+        contatore_cantieri = 0
+        
+        try:
             corsi = db.reference('/corsi', url=DB_URL).get() 
-            if corsi: 
-                for cid, dati in corsi.items(): 
-                    try: 
+            if corsi:
+                for cid, dati in corsi.items():
+                    contatore_corsi += 1
+                    try:
                         d_scad = datetime.strptime(dati.get('data_scadenza', '2000-01-01'), "%Y-%m-%d").date() 
                         if d_scad <= soglia and not dati.get('notifica_inviata', False): 
                             esito = invia_email(dati.get('nominativo'), dati.get('corso'), dati.get('data_scadenza'))
                             if "Inviato" in esito:
                                 db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True}) 
+                                status.write(f"✅ Inviata mail per: {dati.get('nominativo')}")
                                 aggiornato = True
-                    except: continue
-            
+                    except Exception as e:
+                        status.write(f"⚠️ Errore parsing corso {cid}: {e}")
+
             rapporti = db.reference('/rapporti_cantiere', url=DB_URL).get()
             if rapporti:
                 for rid, dati in rapporti.items():
+                    contatore_cantieri += 1
                     try:
                         d_scad = datetime.strptime(dati.get('data_scadenza', '2000-01-01'), "%Y-%m-%d").date()
                         if d_scad <= soglia and not dati.get('notifica_inviata', False):
                             esito = invia_email_cantiere(dati.get('cantiere'), dati.get('parte'), dati.get('data_scadenza'))
                             if "Inviato" in esito:
                                 db.reference(f'/rapporti_cantiere/{rid}', url=DB_URL).update({'notifica_inviata': True}) 
+                                status.write(f"✅ Inviata mail per cantiere: {dati.get('cantiere')}")
                                 aggiornato = True
-                    except: continue
-            
+                    except Exception as e:
+                        status.write(f"⚠️ Errore parsing cantiere {rid}: {e}")
+
             if aggiornato:
+                status.update(label="Scansione completata!", state="complete", expanded=False)
                 force_refresh()
-                st.rerun() 
-            else: st.info("Nessuna nuova scadenza trovata.")
+                st.success("Notifiche inviate e database aggiornato.")
+                time.sleep(1)
+                st.rerun()
+            else:
+                status.update(label="Scansione terminata.", state="complete", expanded=False)
+                st.info(f"Analizzati {contatore_corsi} corsi e {contatore_cantieri} cantieri. Nessuna nuova scadenza trovata.")
+        except Exception as e:
+            status.update(label="Errore critico", state="error")
+            st.error(f"Errore durante la scansione: {e}")
          
     if st.button("🔄 Reset Mail Inviate"): 
         corsi = get_data('/corsi', st.session_state.db_version) 
@@ -287,7 +302,6 @@ with tab1:
 with tab2:
     corsi_matrice = get_data('/corsi', st.session_state.db_version)
     if corsi_matrice:
-        # Logica tabella semplificata per brevità
         st.write("Visualizzazione tabella attiva.")
         st.dataframe(pd.DataFrame.from_dict(corsi_matrice, orient='index'), use_container_width=True)
 
