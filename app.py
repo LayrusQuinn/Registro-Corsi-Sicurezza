@@ -36,6 +36,15 @@ if not st.session_state.authenticated:
                 st.error("Username o Password errati")
     st.stop()
 
+# --- 2.5 FORZA RERUN OGNI 2 SECONDI ---
+if "last_manual_rerun" not in st.session_state:
+    st.session_state.last_manual_rerun = time.time()
+
+current_time = time.time()
+if current_time - st.session_state.last_manual_rerun > 2:
+    st.session_state.last_manual_rerun = current_time
+    st.rerun()
+
 # --- 3. CONNESSIONE A FIREBASE ---
 DB_URL = "https://corsi-sicurezza-ggi-default-rtdb.europe-west1.firebasedatabase.app/"
 
