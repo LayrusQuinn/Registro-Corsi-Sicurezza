@@ -36,8 +36,8 @@ if not st.session_state.authenticated:
                 st.error("Username o Password errati")
     st.stop()
 
-# Se autenticato, attiva il refresh
-st_autorefresh(interval=5000, key="datarefresh")
+# --- FIX: Intervallo di refresh impostato a 5 minuti (300000ms) ---
+st_autorefresh(interval=300000, key="datarefresh")
 
 # --- 3. CONNESSIONE A FIREBASE (SICURA) ---
 DB_URL = "https://corsi-sicurezza-ggi-default-rtdb.europe-west1.firebasedatabase.app/"
