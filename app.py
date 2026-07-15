@@ -9,9 +9,11 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import io
+import time
 
 # --- 1. CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="Sicurezza & Cantieri | Guasti Gino", layout="wide")
+st_autorefresh(interval=2000, key="datarefresh")
 
 # --- 2. SISTEMA DI LOGIN ---
 if 'authenticated' not in st.session_state:
@@ -34,41 +36,38 @@ if not st.session_state.authenticated:
                 st.error("Username o Password errati")
     st.stop()
 
-# --- Utility per formato data ---
-def format_ita(data_str):
-    try:
-        return datetime.strptime(data_str, "%Y-%m-%d").strftime("%d/%m/%Y")
-    except:
-        return data_str
+# --- 2.5 FORZA RERUN OGNI 2 SECONDI ---
+if "last_manual_rerun" not in st.session_state:
+    st.session_state.last_manual_rerun = time.time()
 
-# --- Refresh ogni 5 minuti (300000ms) ---
-st_autorefresh(interval=300000, key="datarefresh")
+current_time = time.time()
+if current_time - st.session_state.last_manual_rerun > 2:
+    st.session_state.last_manual_rerun = current_time
+    st.rerun()
 
-# --- 3. CONNESSIONE A FIREBASE (SICURA) ---
+# --- 3. CONNESSIONE A FIREBASE ---
 DB_URL = "https://corsi-sicurezza-ggi-default-rtdb.europe-west1.firebasedatabase.app/"
 
-def initialize_firebase():
-    if not firebase_admin._apps:
-        try:
-            if "firebase_json" in st.secrets:
-                key_dict = json.loads(st.secrets["firebase_json"])
-                cred = credentials.Certificate(key_dict)
-                firebase_admin.initialize_app(cred, {'databaseURL': DB_URL})
-            else:
-                st.error("Errore: Credenziali Firebase non trovate nei Secrets.")
-                st.stop()
-        except Exception as e:
-            st.error(f"Errore connessione DB: {e}")
+if not firebase_admin._apps:
+    try:
+        if "firebase_json" in st.secrets:
+            key_dict = json.loads(st.secrets["firebase_json"])
+            cred = credentials.Certificate(key_dict)
+            firebase_admin.initialize_app(cred, {'databaseURL': DB_URL})
+        else:
+            st.error("Errore: Credenziali Firebase non trovate nei Secrets.")
             st.stop()
+    except Exception as e:
+        st.error(f"Errore connessione DB: {e}")
 
-initialize_firebase()
-
-# --- 4. FUNZIONI DI DATABASE ---
+# --- 4. FUNZIONI DI DATABASE (SENZA CACHE!) ---
 def get_data(path):
+    """Legge dati da Firebase SEMPRE da DB (niente cache)"""
     try:
         dati = db.reference(path, url=DB_URL).get()
         return dati if dati else {}
-    except: return {}
+    except Exception as e:
+        return {}
 
 def set_data(path, data):
     db.reference(path, url=DB_URL).set(data)
@@ -82,12 +81,9 @@ def delete_data(path, item_id):
     db.reference(f'{path}/{item_id}', url=DB_URL).delete()
     st.rerun()
 
-def aggiorna_corso(course_id, nuova_data_svolto, nuova_data_scadenza):
-    db.reference(f'/corsi/{course_id}', url=DB_URL).update({
-        'data_svolto': nuova_data_svolto,
-        'data_scadenza': nuova_data_scadenza,
-        'notifica_inviata': False
-    })
+def update_data(path, item_id, data):
+    db.reference(f'{path}/{item_id}', url=DB_URL).update(data)
+    st.rerun()
 
 # --- 5. LOGICA EXCEL ---
 def esporta_excel(dati):
@@ -117,7 +113,9 @@ def invia_email(nominativo, corso, data_scadenza):
     destinatari_dict = get_data('/destinatari')
     destinatari = [v['email'] for v in destinatari_dict.values()] if destinatari_dict else []
     if not destinatari or not password: return "Errore Config"
-    d_scad_ita = format_ita(data_scadenza)
+    try:
+        d_scad_ita = datetime.strptime(data_scadenza, "%Y-%m-%d").strftime("%d/%m/%Y")
+    except: d_scad_ita = data_scadenza
     msg = MIMEMultipart()
     msg['From'] = mittente
     msg['To'] = ", ".join(destinatari)
@@ -139,7 +137,9 @@ def invia_email_cantiere(cantiere, parte, data_scadenza):
     destinatari_dict = get_data('/destinatari')
     destinatari = [v['email'] for v in destinatari_dict.values()] if destinatari_dict else []
     if not destinatari or not password: return "Errore Config"
-    d_scad_ita = format_ita(data_scadenza)
+    try:
+        d_scad_ita = datetime.strptime(data_scadenza, "%Y-%m-%d").strftime("%d/%m/%Y")
+    except: d_scad_ita = data_scadenza
     msg = MIMEMultipart()
     msg['From'] = mittente
     msg['To'] = ", ".join(destinatari)
@@ -154,7 +154,7 @@ def invia_email_cantiere(cantiere, parte, data_scadenza):
         return "Inviato ✅"
     except Exception as e: return f"Errore: {e}"
 
-# --- 7. DIALOG / RENDER ---
+# --- 7. DIALOG ---
 @st.dialog("Conferma eliminazione corso")
 def conferma_eliminazione(cid):
     st.write("Vuoi davvero eliminare questo corso?")
@@ -171,58 +171,116 @@ def conferma_eliminazione_rapporto(rid):
         st.rerun()
     if st.button("Annulla"): st.rerun()
 
+@st.dialog("📝 Modifica Corso")
+def modifica_corso_dialog(cid, dati_corso):
+    st.write(f"**Nominativo:** {dati_corso.get('nominativo')}")
+    st.write(f"**Corso:** {dati_corso.get('corso')}")
+    
+    # Parse data attuale
+    data_attuale = datetime.strptime(dati_corso.get('data_scadenza'), "%Y-%m-%d").date()
+    
+    # Input nuova data
+    nuova_data = st.date_input("📅 Nuova data scadenza:", value=data_attuale)
+    reset_notifica = st.checkbox("🔄 Reset notifica inviata (torna a 🟢 IN CORSO)")
+    
+    # ANTEPRIMA
+    st.divider()
+    st.subheader("📊 Anteprima Modifiche:")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write("**Data Scadenza Attuale:**")
+        st.write(f"🔴 {dati_corso.get('data_scadenza')}")
+    with col2:
+        st.write("**Data Scadenza Nuova:**")
+        st.write(f"🟢 {str(nuova_data)}")
+    
+    if reset_notifica:
+        st.write("**Notifica inviata:** ✅ True → 🔄 False (reset)")
+    
+    st.divider()
+    
+    # Bottoni Conferma/Annulla
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("✅ Conferma Modifiche", use_container_width=True):
+            dati_aggiornati = {'data_scadenza': str(nuova_data)}
+            if reset_notifica:
+                dati_aggiornati['notifica_inviata'] = False
+            update_data('/corsi', cid, dati_aggiornati)
+            st.success("Corso modificato con successo! ✅")
+            st.rerun()
+    
+    with col2:
+        if st.button("❌ Annulla", use_container_width=True):
+            st.info("Modifiche annullate.")
+            st.rerun()
+
+# --- 8. UI RENDER ---
 def render_registro():
     corsi = get_data('/corsi')
+    
+    # --- SEZIONE MODIFICA IN ALTO ---
+    st.subheader("📝 Modifica Corsi")
+    
+    if corsi:
+        # Crea lista di opzioni per il dropdown
+        opzioni_corsi = {}
+        for cid, d in corsi.items():
+            label = f"{d.get('nominativo')} - {d.get('corso')} (Scade: {d.get('data_scadenza')})"
+            opzioni_corsi[label] = cid
+        
+        corso_selezionato = st.selectbox(
+            "Seleziona corso da modificare:",
+            options=list(opzioni_corsi.keys()),
+            key="modifica_selectbox"
+        )
+        
+        if st.button("✏️ Modifica Corso Selezionato", use_container_width=True):
+            cid_selezionato = opzioni_corsi[corso_selezionato]
+            modifica_corso_dialog(cid_selezionato, corsi[cid_selezionato])
+    
+    st.divider()
+    
+    # --- SEZIONE RICERCA E FILTRI ---
     c1, c2 = st.columns(2)
     search = c1.text_input("🔍 Cerca")
     filtro_stato = c2.selectbox("Filtra", ["Tutti", "🟢 IN CORSO", "⚠️ IN SCADENZA", "🔴 SCADUTO", "✅ Mail inviata"])
+    
     if corsi:
         for cid, d in corsi.items():
             try:
                 d_scad = datetime.strptime(d['data_scadenza'], "%Y-%m-%d").date()
                 oggi = datetime.today().date()
                 soglia = oggi + timedelta(days=30)
-                if d_scad < oggi: stato, colore = "🔴 SCADUTO", "red"
-                elif d_scad <= soglia: stato, colore = "⚠️ IN SCADENZA", "orange"
-                elif d.get('notifica_inviata', False): stato, colore = "✅ Mail inviata", "green"
-                else: stato, colore = "🟢 IN CORSO", "blue"
+                
+                # ORDINE CORRETTO: controlla mail inviata PRIMA di controllare lo stato di scadenza
+                if d.get('notifica_inviata', False): 
+                    stato, colore = "✅ Mail inviata", "green"
+                elif d_scad < oggi: 
+                    stato, colore = "🔴 SCADUTO", "red"
+                elif d_scad <= soglia: 
+                    stato, colore = "⚠️ IN SCADENZA", "orange"
+                else: 
+                    stato, colore = "🟢 IN CORSO", "blue"
                 
                 if (search.lower() in d.get('nominativo', '').lower()) and (filtro_stato == "Tutti" or filtro_stato == stato):
                     with st.container(border=True):
                         cols = st.columns([2, 2, 1, 1, 1, 0.5])
                         cols[0].markdown(f":{colore}[{d.get('nominativo')}]")
                         cols[1].markdown(f":{colore}[{d.get('corso')}]")
-                        cols[2].markdown(f":{colore}[{format_ita(d.get('data_svolto'))}]")
-                        cols[3].markdown(f":{colore}[{format_ita(d.get('data_scadenza'))}]")
+                        cols[2].markdown(f":{colore}[{d.get('data_svolto')}]")
+                        cols[3].markdown(f":{colore}[{d.get('data_scadenza')}]")
                         cols[4].markdown(f":{colore}[**{stato}**]")
                         if cols[5].button("🗑️", key=f"del_{cid}"): conferma_eliminazione(cid)
             except: continue
-
-def render_modifica():
-    corsi = get_data('/corsi')
-    if not corsi:
-        st.write("Nessun corso presente.")
-        return
-    
-    options = {cid: f"{d.get('nominativo')} - {d.get('corso')} (Scad: {format_ita(d.get('data_scadenza'))})" for cid, d in corsi.items()}
-    selected_cid = st.selectbox("Seleziona il corso da modificare", options=list(options.keys()), format_func=lambda x: options[x])
-    
-    if selected_cid:
-        d = corsi[selected_cid]
-        with st.form("form_modifica_tab"):
-            data_s = st.date_input("Nuova Data Svolgimento", value=datetime.strptime(d.get('data_svolto', '2026-01-01'), "%Y-%m-%d"), format="DD/MM/YYYY")
-            data_scad = st.date_input("Nuova Data Scadenza", value=datetime.strptime(d.get('data_scadenza', '2026-01-01'), "%Y-%m-%d"), format="DD/MM/YYYY")
-            if st.form_submit_button("💾 Salva Modifiche"):
-                aggiorna_corso(selected_cid, str(data_s), str(data_scad))
-                st.success("Aggiornato!")
-                st.rerun()
 
 def render_cantieri():
     rapporti = get_data('/rapporti_cantiere')
     if rapporti:
         for rid, d in rapporti.items():
             with st.container(border=True):
-                st.write(f"{d.get('cantiere')} - {d.get('parte')} (Scadenza: {format_ita(d.get('data_scadenza'))})")
+                st.write(f"{d.get('cantiere')} - {d.get('parte')} (Scadenza: {d.get('data_scadenza')})")
                 if st.button("🗑️", key=f"del_c_{rid}"): conferma_eliminazione_rapporto(rid)
 
 # --- 9. SIDEBAR ---
@@ -284,13 +342,12 @@ with st.sidebar:
 
 # --- MAIN ---
 st.title("Guasti Gino Impianti S.r.l.")
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📋 Registro", "📊 Tabella", "✏️ Modifica", "➕ Corso", "⏳ Nuova Scadenza", "🏗️ Cantieri"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 Registro", "📊 Tabella", "➕ Corso", "⏳ Nuova Scadenza", "🏗️ Cantieri"])
 with tab1: render_registro()
 with tab2:
     corsi_matrice = get_data('/corsi')
     if corsi_matrice: st.dataframe(pd.DataFrame.from_dict(corsi_matrice, orient='index'), use_container_width=True)
-with tab3: render_modifica()
-with tab4:
+with tab3:
     nom_input = st.text_input("Dipendente")
     with st.form("form_corso_new"):
         corso_add = st.selectbox("Corso", ["Preposto", "RLS", "Antincendio", "PLE", "Muletto", "Altro"])
@@ -299,11 +356,11 @@ with tab4:
         if st.form_submit_button("💾 Salva"):
             scadenza = data_s.replace(year=data_s.year + val)
             push_data('/corsi', {"nominativo": nom_input, "corso": corso_add, "data_svolto": str(data_s), "data_scadenza": str(scadenza), "notifica_inviata": False})
-with tab5:
+with tab4:
     with st.form("form_cantiere"):
         nome_cantiere = st.text_input("Cantiere")
         parte_cantiere = st.text_input("Parte")
-        data_scadenza = st.date_input("Data Scadenza", format="DD/MM/YYYY")
+        data_scadenza = st.date_input("Data Scadenza")
         if st.form_submit_button("💾 Salva"):
             push_data('/rapporti_cantiere', {"cantiere": nome_cantiere, "parte": parte_cantiere, "data_scadenza": str(data_scadenza), "notifica_inviata": False})
-with tab6: render_cantieri()
+with tab5: render_cantieri()
