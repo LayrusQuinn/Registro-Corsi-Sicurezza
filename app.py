@@ -13,7 +13,7 @@ import time
 
 # --- 1. CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="Sicurezza & Cantieri | Guasti Gino", layout="wide")
-st_autorefresh(interval=3000, key="datarefresh")
+st_autorefresh(interval=2000, key="datarefresh")
 
 # --- 2. SISTEMA DI LOGIN ---
 if 'authenticated' not in st.session_state:
@@ -51,10 +51,9 @@ if not firebase_admin._apps:
     except Exception as e:
         st.error(f"Errore connessione DB: {e}")
 
-# --- 4. FUNZIONI DI DATABASE ---
-@st.cache_resource(ttl=2)
+# --- 4. FUNZIONI DI DATABASE (SENZA CACHE!) ---
 def get_data(path):
-    """Legge dati da Firebase con cache di 2 secondi per sincronizzazione real-time"""
+    """Legge dati da Firebase SEMPRE da DB (niente cache)"""
     try:
         dati = db.reference(path, url=DB_URL).get()
         return dati if dati else {}
