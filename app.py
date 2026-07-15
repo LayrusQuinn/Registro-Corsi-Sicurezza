@@ -14,14 +14,9 @@ import time
 # --- 1. CONFIGURAZIONE PAGINA --- 
 st.set_page_config(page_title="Sicurezza & Cantieri | Guasti Gino", layout="wide") 
 
-# --- 2. SISTEMA DI LOGIN & STATE --- 
+# --- 2. SISTEMA DI LOGIN --- 
 if 'authenticated' not in st.session_state: 
     st.session_state.authenticated = False 
-if 'db_version' not in st.session_state: 
-    st.session_state.db_version = 0 
-
-def force_refresh():
-    st.session_state.db_version += 1
 
 if st.query_params.get("logged_in") == "true": 
     st.session_state.authenticated = True 
@@ -51,9 +46,8 @@ if not firebase_admin._apps:
     except Exception as e: 
         st.error(f"Errore connessione DB: {e}") 
 
-# --- 4. FUNZIONI DI DATABASE (CON VERSIONAMENTO) --- 
-@st.cache_data(ttl=60) 
-def get_data(path, version): 
+# --- 4. FUNZIONI DI DATABASE (DIRETTE) --- 
+def get_data(path): 
     try: 
         dati = db.reference(path, url=DB_URL).get() 
         return dati if dati else {} 
@@ -61,15 +55,15 @@ def get_data(path, version):
 
 def set_data(path, data): 
     db.reference(path, url=DB_URL).set(data) 
-    force_refresh()
+    st.rerun()
 
 def push_data(path, data): 
     db.reference(path, url=DB_URL).push(data) 
-    force_refresh()
+    st.rerun()
 
 def delete_data(path, item_id): 
     db.reference(f'{path}/{item_id}', url=DB_URL).delete() 
-    force_refresh()
+    st.rerun()
 
 # --- 5. LOGICA EXCEL --- 
 def esporta_excel(dati): 
@@ -86,7 +80,6 @@ def esporta_excel(dati):
     output = io.BytesIO() 
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer: 
         df.to_excel(writer, index=False, sheet_name='Registro Corsi') 
-        workbook  = writer.book 
         worksheet = writer.sheets['Registro Corsi'] 
         for i, col in enumerate(df.columns): 
             column_len = max(df[col].astype(str).map(len).max(), len(col)) + 2 
@@ -95,10 +88,10 @@ def esporta_excel(dati):
 
 # --- 6. LOGICA EMAIL --- 
 def invia_email(nominativo, corso, data_scadenza): 
-    config = get_data('/config', st.session_state.db_version) 
+    config = get_data('/config') 
     mittente = config.get('email_mittente', '') 
     password = config.get('password_mittente', '') 
-    destinatari_dict = get_data('/destinatari', st.session_state.db_version) 
+    destinatari_dict = get_data('/destinatari') 
     destinatari = [v['email'] for v in destinatari_dict.values()] if destinatari_dict else [] 
     if not destinatari or not password: return "Errore Config" 
     try: 
@@ -121,10 +114,10 @@ def invia_email(nominativo, corso, data_scadenza):
     except Exception as e: return f"Errore: {e}" 
 
 def invia_email_cantiere(cantiere, parte, data_scadenza):
-    config = get_data('/config', st.session_state.db_version) 
+    config = get_data('/config') 
     mittente = config.get('email_mittente', '') 
     password = config.get('password_mittente', '') 
-    destinatari_dict = get_data('/destinatari', st.session_state.db_version) 
+    destinatari_dict = get_data('/destinatari') 
     destinatari = [v['email'] for v in destinatari_dict.values()] if destinatari_dict else [] 
     if not destinatari or not password: return "Errore Config" 
     try: 
@@ -152,7 +145,6 @@ def conferma_eliminazione(cid):
     st.write("Vuoi davvero eliminare questo corso?") 
     if st.button("Sì, elimina corso"): 
         delete_data('/corsi', cid) 
-        st.rerun() 
     if st.button("Annulla"): st.rerun() 
 
 @st.dialog("Conferma eliminazione scadenza")
@@ -160,7 +152,6 @@ def conferma_eliminazione_rapporto(rid):
     st.write("Vuoi davvero eliminare questa scadenza di cantiere?")
     if st.button("Sì, elimina scadenza"):
         delete_data('/rapporti_cantiere', rid)
-        st.rerun()
     if st.button("Annulla"): st.rerun()
 
 # --- 8. INTERFACCIA UTENTE --- 
@@ -180,25 +171,23 @@ with st.sidebar:
     st.header("⚙️ Impostazioni") 
     with st.expander("📧 Configurazione SMTP"): 
         with st.form("form_smtp"): 
-            email_mit = st.text_input("Gmail Mittente", value=get_data('/config', st.session_state.db_version).get('email_mittente', '')) 
-            pass_mit = st.text_input("Password App", value=get_data('/config', st.session_state.db_version).get('password_mittente', ''), type="password") 
+            config = get_data('/config')
+            email_mit = st.text_input("Gmail Mittente", value=config.get('email_mittente', '')) 
+            pass_mit = st.text_input("Password App", value=config.get('password_mittente', ''), type="password") 
             if st.form_submit_button("Salva Credenziali"): 
                 set_data('/config/email_mittente', email_mit) 
                 set_data('/config/password_mittente', pass_mit) 
-                st.rerun() 
     with st.expander("👥 Destinatari"): 
-        dest_attuali = get_data('/destinatari', st.session_state.db_version) 
+        dest_attuali = get_data('/destinatari') 
         for d_id, d_dati in dest_attuali.items(): 
             col1, col2 = st.columns([3, 1]) 
             col1.write(d_dati.get('email', '')) 
             if col2.button("🗑️", key=f"del_{d_id}"): 
                 delete_data('/destinatari', d_id) 
-                st.rerun() 
         nuova_email = st.text_input("Aggiungi email:") 
         if st.button("Aggiungi"): 
             if "@" in nuova_email: 
                 push_data('/destinatari', {"email": nuova_email}) 
-                st.rerun() 
     st.divider() 
     
     if st.button("🚀 Esegui Scansione", type="primary", use_container_width=True): 
@@ -206,70 +195,51 @@ with st.sidebar:
         oggi = datetime.today().date() 
         soglia = oggi + timedelta(days=30) 
         aggiornato = False
-        contatore_corsi = 0
-        contatore_cantieri = 0
         
-        try:
-            corsi = db.reference('/corsi', url=DB_URL).get() 
-            if corsi:
-                for cid, dati in corsi.items():
-                    contatore_corsi += 1
-                    try:
-                        d_scad = datetime.strptime(dati.get('data_scadenza', '2000-01-01'), "%Y-%m-%d").date() 
-                        if d_scad <= soglia and not dati.get('notifica_inviata', False): 
-                            esito = invia_email(dati.get('nominativo'), dati.get('corso'), dati.get('data_scadenza'))
-                            if "Inviato" in esito:
-                                db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True}) 
-                                status.write(f"✅ Inviata mail per: {dati.get('nominativo')}")
-                                aggiornato = True
-                    except Exception as e:
-                        status.write(f"⚠️ Errore parsing corso {cid}: {e}")
+        corsi = get_data('/corsi')
+        if corsi:
+            for cid, dati in corsi.items():
+                try:
+                    d_scad = datetime.strptime(dati.get('data_scadenza', '2000-01-01'), "%Y-%m-%d").date() 
+                    if d_scad <= soglia and not dati.get('notifica_inviata', False): 
+                        esito = invia_email(dati.get('nominativo'), dati.get('corso'), dati.get('data_scadenza'))
+                        if "Inviato" in esito:
+                            db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True}) 
+                            status.write(f"✅ Inviata mail per: {dati.get('nominativo')}")
+                            aggiornato = True
+                except: continue
 
-            rapporti = db.reference('/rapporti_cantiere', url=DB_URL).get()
-            if rapporti:
-                for rid, dati in rapporti.items():
-                    contatore_cantieri += 1
-                    try:
-                        d_scad = datetime.strptime(dati.get('data_scadenza', '2000-01-01'), "%Y-%m-%d").date()
-                        if d_scad <= soglia and not dati.get('notifica_inviata', False):
-                            esito = invia_email_cantiere(dati.get('cantiere'), dati.get('parte'), dati.get('data_scadenza'))
-                            if "Inviato" in esito:
-                                db.reference(f'/rapporti_cantiere/{rid}', url=DB_URL).update({'notifica_inviata': True}) 
-                                status.write(f"✅ Inviata mail per cantiere: {dati.get('cantiere')}")
-                                aggiornato = True
-                    except Exception as e:
-                        status.write(f"⚠️ Errore parsing cantiere {rid}: {e}")
+        rapporti = get_data('/rapporti_cantiere')
+        if rapporti:
+            for rid, dati in rapporti.items():
+                try:
+                    d_scad = datetime.strptime(dati.get('data_scadenza', '2000-01-01'), "%Y-%m-%d").date()
+                    if d_scad <= soglia and not dati.get('notifica_inviata', False):
+                        esito = invia_email_cantiere(dati.get('cantiere'), dati.get('parte'), dati.get('data_scadenza'))
+                        if "Inviato" in esito:
+                            db.reference(f'/rapporti_cantiere/{rid}', url=DB_URL).update({'notifica_inviata': True}) 
+                            status.write(f"✅ Inviata mail per cantiere: {dati.get('cantiere')}")
+                            aggiornato = True
+                except: continue
 
-            if aggiornato:
-                status.update(label="Scansione completata!", state="complete", expanded=False)
-                st.success("Notifiche inviate e database aggiornato.")
-                
-                # --- SEQUENZA DI HARD REFRESH ---
-                st.cache_data.clear()      # Pulisce la memoria cache
-                force_refresh()            # Forza il cambio versione per get_data
-                time.sleep(2)              # Attende la sincronizzazione Firebase
-                st.rerun()                 # Ricarica l'intera app
-            else:
-                status.update(label="Scansione terminata.", state="complete", expanded=False)
-                st.info(f"Analizzati {contatore_corsi} corsi e {contatore_cantieri} cantieri. Nessuna nuova scadenza trovata.")
-        except Exception as e:
-            status.update(label="Errore critico", state="error")
-            st.error(f"Errore durante la scansione: {e}")
-         
+        if aggiornato:
+            status.update(label="Scansione completata!", state="complete", expanded=False)
+            st.rerun()
+        else:
+            status.update(label="Scansione terminata.", state="complete", expanded=False)
+            st.info("Nessuna nuova scadenza trovata.")
+          
     if st.button("🔄 Reset Mail Inviate"): 
-        corsi = get_data('/corsi', st.session_state.db_version) 
+        corsi = get_data('/corsi') 
         if corsi: 
             for cid in corsi: db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': False}) 
-        rapporti = get_data('/rapporti_cantiere', st.session_state.db_version)
+        rapporti = get_data('/rapporti_cantiere')
         if rapporti:
             for rid in rapporti: db.reference(f'/rapporti_cantiere/{rid}', url=DB_URL).update({'notifica_inviata': False})
-        
-        st.cache_data.clear()
-        force_refresh()
         st.rerun() 
     
     st.divider() 
-    corsi_per_export = get_data('/corsi', st.session_state.db_version) 
+    corsi_per_export = get_data('/corsi') 
     if corsi_per_export: 
         st.download_button("📥 Esporta Excel", data=esporta_excel(corsi_per_export), file_name="Registro.xlsx", use_container_width=True) 
 
@@ -277,7 +247,7 @@ with st.sidebar:
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 Registro", "📊 Tabella", "➕ Corso", "⏳ Nuova Scadenza", "🏗️ Cantieri"]) 
 
 with tab1: 
-    corsi = get_data('/corsi', st.session_state.db_version) 
+    corsi = get_data('/corsi') 
     c1, c2 = st.columns(2) 
     search = c1.text_input("🔍 Cerca") 
     filtro_stato = c2.selectbox("Filtra", ["Tutti", "🟢 IN CORSO", "⚠️ IN SCADENZA", "🔴 SCADUTO", "✅ Mail inviata"]) 
@@ -305,7 +275,7 @@ with tab1:
             except: continue
 
 with tab2:
-    corsi_matrice = get_data('/corsi', st.session_state.db_version)
+    corsi_matrice = get_data('/corsi')
     if corsi_matrice:
         st.write("Visualizzazione tabella attiva.")
         st.dataframe(pd.DataFrame.from_dict(corsi_matrice, orient='index'), use_container_width=True)
@@ -319,7 +289,6 @@ with tab3:
         if st.form_submit_button("💾 Salva"): 
             scadenza = data_s.replace(year=data_s.year + val) 
             push_data('/corsi', {"nominativo": nom_input, "corso": corso_add, "data_svolto": str(data_s), "data_scadenza": str(scadenza), "notifica_inviata": False}) 
-            st.rerun() 
 
 with tab4:
     with st.form("form_cantiere"):
@@ -328,10 +297,9 @@ with tab4:
         data_scadenza = st.date_input("Data Scadenza")
         if st.form_submit_button("💾 Salva"):
             push_data('/rapporti_cantiere', {"cantiere": nome_cantiere, "parte": parte_cantiere, "data_scadenza": str(data_scadenza), "notifica_inviata": False})
-            st.rerun()
 
 with tab5:
-    rapporti = get_data('/rapporti_cantiere', st.session_state.db_version)
+    rapporti = get_data('/rapporti_cantiere')
     if rapporti:
         for rid, d in rapporti.items():
             with st.container(border=True):
