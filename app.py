@@ -205,38 +205,39 @@ with st.sidebar:
     
     # --- BLOCCO AGGIORNATO CON ATTESA SINCRONIZZAZIONE ---
     if st.button("🚀 Esegui Scansione", type="primary", use_container_width=True): 
-        oggi = datetime.today().date() 
-        soglia = oggi + timedelta(days=30) 
-        aggiornato = False
-         
-        # Scansione Scadenze Corsi
-        corsi = get_data('/corsi') 
-        if corsi: 
-            for cid, dati in corsi.items(): 
-                try: 
-                    d_scad = datetime.strptime(dati.get('data_scadenza', '2000-01-01'), "%Y-%m-%d").date() 
-                    if d_scad <= soglia and not dati.get('notifica_inviata', False): 
-                        invia_email(dati.get('nominativo'), dati.get('corso'), dati.get('data_scadenza')) 
-                        db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True}) 
-                        aggiornato = True
-                except: continue 
-                 
-        # Scansione Scadenze Cantieri
-        rapporti = get_data('/rapporti_cantiere')
-        if rapporti:
-            for rid, dati in rapporti.items():
-                try:
-                    d_scad = datetime.strptime(dati.get('data_scadenza', '2000-01-01'), "%Y-%m-%d").date()
-                    if d_scad <= soglia and not dati.get('notifica_inviata', False):
-                        invia_email_cantiere(dati.get('cantiere'), dati.get('parte'), dati.get('data_scadenza'))
-                        db.reference(f'/rapporti_cantiere/{rid}', url=DB_URL).update({'notifica_inviata': True}) 
-                        aggiornato = True
-                except: continue
-        
-        if aggiornato:
-            st.cache_data.clear()
-            time.sleep(1) # Attesa per sincronizzazione Firebase
-        st.rerun() 
+        with st.spinner("Sincronizzazione in corso..."):
+            oggi = datetime.today().date() 
+            soglia = oggi + timedelta(days=30) 
+            aggiornato = False
+             
+            # Scansione Scadenze Corsi
+            corsi = get_data('/corsi') 
+            if corsi: 
+                for cid, dati in corsi.items(): 
+                    try: 
+                        d_scad = datetime.strptime(dati.get('data_scadenza', '2000-01-01'), "%Y-%m-%d").date() 
+                        if d_scad <= soglia and not dati.get('notifica_inviata', False): 
+                            invia_email(dati.get('nominativo'), dati.get('corso'), dati.get('data_scadenza')) 
+                            db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True}) 
+                            aggiornato = True
+                    except: continue 
+                     
+            # Scansione Scadenze Cantieri
+            rapporti = get_data('/rapporti_cantiere')
+            if rapporti:
+                for rid, dati in rapporti.items():
+                    try:
+                        d_scad = datetime.strptime(dati.get('data_scadenza', '2000-01-01'), "%Y-%m-%d").date()
+                        if d_scad <= soglia and not dati.get('notifica_inviata', False):
+                            invia_email_cantiere(dati.get('cantiere'), dati.get('parte'), dati.get('data_scadenza'))
+                            db.reference(f'/rapporti_cantiere/{rid}', url=DB_URL).update({'notifica_inviata': True}) 
+                            aggiornato = True
+                    except: continue
+            
+            if aggiornato:
+                st.cache_data.clear()
+                time.sleep(2) # Attesa cautelativa aumentata per Firebase
+            st.rerun() 
          
     if st.button("🔄 Reset Mail Inviate"): 
         corsi = get_data('/corsi') 
