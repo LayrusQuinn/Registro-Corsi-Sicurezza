@@ -227,7 +227,7 @@ def render_registro():
         }
         
         # Aggiunta key univoca per stabilizzare il widget
-        corso_selezionato_label = st.selectbox(
+        st.selectbox(
             "Seleziona corso da modificare:", 
             options=list(opzioni_mappa.keys()),
             index=None,
@@ -235,9 +235,10 @@ def render_registro():
             key="seleziona_corso_modifica"
         )
         
-        if corso_selezionato_label:
+        # VERIFICA DELLO STATO DALLA KEY
+        if st.session_state.get("seleziona_corso_modifica"):
             if st.button("✏️ Modifica Corso Selezionato", use_container_width=True):
-                st.session_state.edit_cid = opzioni_mappa[corso_selezionato_label]
+                st.session_state.edit_cid = opzioni_mappa[st.session_state["seleziona_corso_modifica"]]
                 st.rerun()
     
     st.divider()
