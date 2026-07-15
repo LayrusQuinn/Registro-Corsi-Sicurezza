@@ -9,6 +9,8 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import io
+import time
+import os
 
 # --- 1. CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="Sicurezza & Cantieri | Guasti Gino", layout="wide")
@@ -33,13 +35,6 @@ if not st.session_state.authenticated:
             else:
                 st.error("Username o Password errati")
     st.stop()
-
-# --- Utility per formato data ---
-def format_ita(data_str):
-    try:
-        return datetime.strptime(data_str, "%Y-%m-%d").strftime("%d/%m/%Y")
-    except:
-        return data_str
 
 # --- Refresh ogni 5 minuti (300000ms) ---
 st_autorefresh(interval=300000, key="datarefresh")
@@ -193,11 +188,12 @@ def render_registro():
                 
                 if (search.lower() in d.get('nominativo', '').lower()) and (filtro_stato == "Tutti" or filtro_stato == stato):
                     with st.container(border=True):
+                        # Colonna pulsanti edit rimossa
                         cols = st.columns([2, 2, 1, 1, 1, 0.5])
                         cols[0].markdown(f":{colore}[{d.get('nominativo')}]")
                         cols[1].markdown(f":{colore}[{d.get('corso')}]")
-                        cols[2].markdown(f":{colore}[{format_ita(d.get('data_svolto'))}]")
-                        cols[3].markdown(f":{colore}[{format_ita(d.get('data_scadenza'))}]")
+                        cols[2].markdown(f":{colore}[{d.get('data_svolto')}]")
+                        cols[3].markdown(f":{colore}[{d.get('data_scadenza')}]")
                         cols[4].markdown(f":{colore}[**{stato}**]")
                         if cols[5].button("🗑️", key=f"del_{cid}"): conferma_eliminazione(cid)
             except: continue
@@ -208,14 +204,14 @@ def render_modifica():
         st.write("Nessun corso presente.")
         return
     
-    options = {cid: f"{d.get('nominativo')} - {d.get('corso')} (Scad: {format_ita(d.get('data_scadenza'))})" for cid, d in corsi.items()}
+    options = {cid: f"{d.get('nominativo')} - {d.get('corso')} (Scad: {d.get('data_scadenza')})" for cid, d in corsi.items()}
     selected_cid = st.selectbox("Seleziona il corso da modificare", options=list(options.keys()), format_func=lambda x: options[x])
     
     if selected_cid:
         d = corsi[selected_cid]
         with st.form("form_modifica_tab"):
-            data_s = st.date_input("Nuova Data Svolgimento", value=datetime.strptime(d.get('data_svolto', '2026-01-01'), "%Y-%m-%d"), format="DD/MM/YYYY")
-            data_scad = st.date_input("Nuova Data Scadenza", value=datetime.strptime(d.get('data_scadenza', '2026-01-01'), "%Y-%m-%d"), format="DD/MM/YYYY")
+            data_s = st.date_input("Nuova Data Svolgimento", value=datetime.strptime(d.get('data_svolto', '2026-01-01'), "%Y-%m-%d"))
+            data_scad = st.date_input("Nuova Data Scadenza", value=datetime.strptime(d.get('data_scadenza', '2026-01-01'), "%Y-%m-%d"))
             if st.form_submit_button("💾 Salva Modifiche"):
                 aggiorna_corso(selected_cid, str(data_s), str(data_scad))
                 st.success("Aggiornato!")
@@ -226,7 +222,7 @@ def render_cantieri():
     if rapporti:
         for rid, d in rapporti.items():
             with st.container(border=True):
-                st.write(f"{d.get('cantiere')} - {d.get('parte')} (Scadenza: {format_ita(d.get('data_scadenza'))})")
+                st.write(f"{d.get('cantiere')} - {d.get('parte')} (Scadenza: {d.get('data_scadenza')})")
                 if st.button("🗑️", key=f"del_c_{rid}"): conferma_eliminazione_rapporto(rid)
 
 # --- 9. SIDEBAR ---
@@ -307,7 +303,7 @@ with tab5:
     with st.form("form_cantiere"):
         nome_cantiere = st.text_input("Cantiere")
         parte_cantiere = st.text_input("Parte")
-        data_scadenza = st.date_input("Data Scadenza", format="DD/MM/YYYY")
+        data_scadenza = st.date_input("Data Scadenza")
         if st.form_submit_button("💾 Salva"):
             push_data('/rapporti_cantiere', {"cantiere": nome_cantiere, "parte": parte_cantiere, "data_scadenza": str(data_scadenza), "notifica_inviata": False})
 with tab6: render_cantieri()
