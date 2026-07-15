@@ -13,6 +13,8 @@ import time
 
 # --- 1. CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="Sicurezza & Cantieri | Guasti Gino", layout="wide")
+# Refresh globale per garantire aggiornamento UI
+st_autorefresh(interval=5000, key="datarefresh")
 
 # --- 2. SISTEMA DI LOGIN ---
 if 'authenticated' not in st.session_state:
@@ -141,6 +143,7 @@ def conferma_eliminazione(cid):
     st.write("Vuoi davvero eliminare questo corso?")
     if st.button("Sì, elimina corso"):
         delete_data('/corsi', cid)
+        st.rerun()
     if st.button("Annulla"): st.rerun()
 
 @st.dialog("Conferma eliminazione scadenza")
@@ -148,10 +151,10 @@ def conferma_eliminazione_rapporto(rid):
     st.write("Vuoi davvero eliminare questa scadenza di cantiere?")
     if st.button("Sì, elimina scadenza"):
         delete_data('/rapporti_cantiere', rid)
+        st.rerun()
     if st.button("Annulla"): st.rerun()
 
-# --- 8. INTERFACCIA UTENTE (FRAMMENTI) ---
-@st.fragment(run_every="5s")
+# --- 8. UI RENDER FUNCTIONS ---
 def render_registro():
     corsi = get_data('/corsi')
     c1, c2 = st.columns(2)
@@ -167,6 +170,7 @@ def render_registro():
                 elif d_scad <= soglia: stato, colore = "⚠️ IN SCADENZA", "orange"
                 elif d.get('notifica_inviata', False): stato, colore = "✅ Mail inviata", "green"
                 else: stato, colore = "🟢 IN CORSO", "blue"
+                
                 if (search.lower() in d.get('nominativo', '').lower()) and (filtro_stato == "Tutti" or filtro_stato == stato):
                     with st.container(border=True):
                         cols = st.columns([2, 2, 1, 1, 1, 0.5])
@@ -178,7 +182,6 @@ def render_registro():
                         if cols[5].button("🗑️", key=f"del_{cid}"): conferma_eliminazione(cid)
             except: continue
 
-@st.fragment(run_every="5s")
 def render_cantieri():
     rapporti = get_data('/rapporti_cantiere')
     if rapporti:
@@ -187,15 +190,9 @@ def render_cantieri():
                 st.write(f"{d.get('cantiere')} - {d.get('parte')} (Scadenza: {d.get('data_scadenza')})")
                 if st.button("🗑️", key=f"del_c_{rid}"): conferma_eliminazione_rapporto(rid)
 
-# --- 8. SIDEBAR ---
+# --- 9. SIDEBAR ---
 with st.sidebar:
     st.header("🔄 Aggiornamento")
-    
-    # DEBUG TOOL
-    with st.expander("🛠️ DEBUG DATABASE"):
-        if st.button("Aggiorna Debug"):
-            st.json(db.reference('/corsi', url=DB_URL).get())
-    
     if st.button("🚪 Logout"):
         st.session_state.authenticated = False
         st.query_params.clear()
