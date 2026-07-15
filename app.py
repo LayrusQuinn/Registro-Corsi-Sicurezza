@@ -23,9 +23,11 @@ def to_ita(date_str):
     except:
         return date_str
 
-# --- 2. SISTEMA DI LOGIN ---
+# --- 2. SISTEMA DI LOGIN & STATO ---
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
+if 'is_editing' not in st.session_state:
+    st.session_state.is_editing = False
 
 if st.query_params.get("logged_in") == "true":
     st.session_state.authenticated = True
@@ -44,14 +46,16 @@ if not st.session_state.authenticated:
                 st.error("Username o Password errati")
     st.stop()
 
-# --- 2.5 FORZA RERUN OGNI 2 SECONDI ---
+# --- 2.5 FORZA RERUN OGNI 2 SECONDI (ISOLATO) ---
 if "last_manual_rerun" not in st.session_state:
     st.session_state.last_manual_rerun = time.time()
 
 current_time = time.time()
-if current_time - st.session_state.last_manual_rerun > 2:
-    st.session_state.last_manual_rerun = current_time
-    st.rerun()
+# La logica di Rerun viene eseguita solo se NON stiamo editando un corso
+if not st.session_state.is_editing:
+    if current_time - st.session_state.last_manual_rerun > 2:
+        st.session_state.last_manual_rerun = current_time
+        st.rerun()
 
 # --- 3. CONNESSIONE A FIREBASE ---
 DB_URL = "https://corsi-sicurezza-ggi-default-rtdb.europe-west1.firebasedatabase.app/"
@@ -177,24 +181,29 @@ def modifica_corso_dialog(cid, dati_corso):
     st.write(f"**Nominativo:** {dati_corso.get('nominativo')}")
     st.write(f"**Corso:** {dati_corso.get('corso')}")
     
-    # Parse data attuale
     data_scad_dt = datetime.strptime(dati_corso.get('data_scadenza'), "%Y-%m-%d")
     data_svolto_dt = datetime.strptime(dati_corso.get('data_svolto'), "%Y-%m-%d")
     
-    # Input nuove date con KEY univoche per gestire correttamente lo stato in Streamlit
     nuova_data_svolto = st.date_input("📅 Data Svolgimento:", value=data_svolto_dt, format="DD/MM/YYYY", key="mod_data_svolto")
     nuova_data_scadenza = st.date_input("📅 Nuova data scadenza:", value=data_scad_dt, format="DD/MM/YYYY", key="mod_data_scadenza")
     reset_notifica = st.checkbox("🔄 Reset notifica inviata (torna a 🟢 IN CORSO)", key="mod_reset_notifica")
     
-    if st.button("✅ Conferma Modifiche", use_container_width=True):
+    col1, col2 = st.columns(2)
+    if col1.button("✅ Conferma Modifiche", use_container_width=True):
         dati_aggiornati = {
             'data_svolto': str(nuova_data_svolto),
             'data_scadenza': str(nuova_data_scadenza)
         }
         if reset_notifica:
             dati_aggiornati['notifica_inviata'] = False
-        
         update_data('/corsi', cid, dati_aggiornati)
+        # Una volta aggiornato, riattiviamo il refresh
+        st.session_state.is_editing = False
+        st.rerun()
+        
+    if col2.button("❌ Chiudi", use_container_width=True):
+        st.session_state.is_editing = False
+        st.rerun()
 
 # --- 8. UI RENDER ---
 def render_registro():
@@ -202,7 +211,6 @@ def render_registro():
     st.subheader("📝 Modifica Corsi")
     
     if corsi:
-        # Mappa Etichetta -> ID per la selectbox
         opzioni_mappa = {
             f"{d.get('nominativo')} - {d.get('corso')} (Scade: {to_ita(d.get('data_scadenza'))})": cid 
             for cid, d in corsi.items()
@@ -212,6 +220,7 @@ def render_registro():
         
         if st.button("✏️ Modifica Corso Selezionato", use_container_width=True):
             cid_scelto = opzioni_mappa[corso_selezionato_label]
+            st.session_state.is_editing = True # Blocca il refresh
             modifica_corso_dialog(cid_scelto, corsi[cid_scelto])
     
     st.divider()
