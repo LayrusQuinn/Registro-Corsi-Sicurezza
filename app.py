@@ -203,41 +203,52 @@ with st.sidebar:
                 st.rerun() 
     st.divider() 
     
-    # --- BLOCCO AGGIORNATO CON ATTESA SINCRONIZZAZIONE ---
+    # --- MODIFICA MIRATA: Esecuzione Scansione ---
     if st.button("🚀 Esegui Scansione", type="primary", use_container_width=True): 
-        with st.spinner("Sincronizzazione in corso..."):
+        with st.spinner("Scansione in corso..."):
             oggi = datetime.today().date() 
             soglia = oggi + timedelta(days=30) 
             aggiornato = False
-             
-            # Scansione Scadenze Corsi
-            corsi = get_data('/corsi') 
+            
+            # Lettura DIRETTA da DB per evitare cache
+            corsi = db.reference('/corsi', url=DB_URL).get() 
             if corsi: 
+                st.write(f"Scansione {len(corsi)} corsi...")
                 for cid, dati in corsi.items(): 
                     try: 
                         d_scad = datetime.strptime(dati.get('data_scadenza', '2000-01-01'), "%Y-%m-%d").date() 
                         if d_scad <= soglia and not dati.get('notifica_inviata', False): 
+                            st.write(f"Inviando: {dati.get('nominativo')} ({dati.get('corso')})")
                             invia_email(dati.get('nominativo'), dati.get('corso'), dati.get('data_scadenza')) 
                             db.reference(f'/corsi/{cid}', url=DB_URL).update({'notifica_inviata': True}) 
                             aggiornato = True
-                    except: continue 
+                    except Exception as e: 
+                        st.error(f"Errore {cid}: {e}")
+                        continue 
                      
-            # Scansione Scadenze Cantieri
-            rapporti = get_data('/rapporti_cantiere')
+            rapporti = db.reference('/rapporti_cantiere', url=DB_URL).get()
             if rapporti:
+                st.write(f"Scansione {len(rapporti)} rapporti...")
                 for rid, dati in rapporti.items():
                     try:
                         d_scad = datetime.strptime(dati.get('data_scadenza', '2000-01-01'), "%Y-%m-%d").date()
                         if d_scad <= soglia and not dati.get('notifica_inviata', False):
+                            st.write(f"Inviando: {dati.get('cantiere')} ({dati.get('parte')})")
                             invia_email_cantiere(dati.get('cantiere'), dati.get('parte'), dati.get('data_scadenza'))
                             db.reference(f'/rapporti_cantiere/{rid}', url=DB_URL).update({'notifica_inviata': True}) 
                             aggiornato = True
-                    except: continue
+                    except Exception as e: 
+                        st.error(f"Errore {rid}: {e}")
+                        continue
             
             if aggiornato:
+                st.success("Scansione completata. Aggiornamento in corso...")
                 st.cache_data.clear()
-                time.sleep(2) # Attesa cautelativa aumentata per Firebase
-            st.rerun() 
+                time.sleep(1)
+                st.rerun() 
+            else:
+                st.info("Nessuna scadenza trovata da notificare.")
+    # ----------------------------------------------
          
     if st.button("🔄 Reset Mail Inviate"): 
         corsi = get_data('/corsi') 
